@@ -1,0 +1,55 @@
+# Cargo 项目配置
+
+[env]
+# 开发环境变量
+RUST_LOG = { value = "debug", condition = "cfg(debug_assertions)" }
+RUST_BACKTRACE = { value = "1", condition = "cfg(debug_assertions)" }
+
+# 测试环境变量
+DATABASE_URL = { value = "sqlite::memory:", condition = "cfg(test)" }
+
+[target.'cfg(test)']
+# 测试特定配置
+rustflags = [
+    # 启用更严格的检查
+    "-D", "warnings",
+    # 优化测试编译速度
+    "-C", "opt-level=0",
+    # 启用增量编译
+    "-C", "incremental=true",
+]
+
+[target.'cfg(debug_assertions)']
+# 开发模式配置
+rustflags = [
+    # 开发时的警告设置
+    "-W", "clippy::all",
+    "-W", "clippy::pedantic",
+    "-A", "clippy::module_name_repetitions",
+]
+
+[alias]
+# 常用命令别名
+t = "test"
+c = "check"
+r = "run"
+b = "build"
+
+# 测试相关别名
+test-unit = "test --lib --bins"
+test-integration = "test --test '*'"
+test-doc = "test --doc"
+test-all = "test --all-features --all-targets"
+test-quick = "test --lib --bins --quiet"
+
+# 代码质量检查
+lint = "clippy --all-targets --all-features -- -D warnings"
+fmt-check = "fmt --all -- --check"
+audit = "audit"
+
+# 覆盖率和基准测试
+coverage = "tarpaulin --out Html --output-dir target/coverage"
+bench = "bench --all-features"
+
+# 发布相关
+release-check = ["fmt-check", "lint", "test-all", "audit"]

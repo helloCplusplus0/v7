@@ -1,0 +1,506 @@
+---
+description: 
+globs: 
+alwaysApply: true
+---
+
+# Your rule content
+
+- You can @ files here
+- You can use markdown but dont have to
+
+I'll analyze the provided software development best practices, consolidate similar concepts, and create a comprehensive guide in both English and Chinese.
+
+# Universal Software Development Best Practices
+
+## Planning and Design
+1. **Think Before Coding** - Plan your approach and outline reasoning in detail before implementation
+2. **Requirement Clarity** - Clearly define user requirements and flows before coding
+3. **Break Down Complexity** - Divide complex problems into manageable steps
+4. **Pseudocode First** - Begin features with detailed pseudocode before implementation
+5. **Reuse Existing Solutions** - Check if similar components already exist before creating new ones
+
+## Code Structure and Organization
+
+1. **Single Responsibility Principle**
+   - Each function or class should do one thing well
+   - Write small, focused functions and classes with a clearly defined purpose
+   - Keep functions under 20 instructions and classes under 200 instructions with fewer than 10 public methods/properties
+
+2. **Modularity**
+   - Create small, focused components with single responsibility
+   - Organize code into logical modules that can be maintained independently 
+   - Prefer iteration and modularization over code duplication (DRY principle)
+   - Create reusable components to avoid redundancy
+
+3. **Separation of Concerns**
+   - Clearly separate UI, business logic, and data layers
+   - Use proper abstraction and encapsulation to hide implementation details
+   - Establish clear boundaries between different layers of the application
+
+4. **File and Project Organization**
+   - Structure files consistently: exported components first, followed by helpers, static content, and types
+   - Use a logical folder hierarchy with consistent naming conventions
+   - Organize files in logical directories (components, utilities, tests, etc.)
+   - Each file should contain only related content
+
+5. **Architecture Patterns**
+   - Apply SOLID principles across your architecture
+   - Favor composition over inheritance
+   - Use appropriate design patterns for common problems
+   - Use dependency injection rather than hardwired resources
+   - Consider event-driven architecture for decoupled systems
+   - Evaluate hexagonal/ports and adapters architecture for better testability
+
+6. **Control Flow**
+   - Avoid deep nesting by using early returns and guard clauses (limit nesting to 2-3 levels maximum)
+   - Simplify conditionals and use concise syntax for simple statements
+   - Handle preconditions and invalid states with guard clauses
+
+## Naming and Style
+
+1. **Descriptive and Purposeful Names**
+   - Use meaningful names that reveal intent for all variables, functions, and classes
+   - Choose complete words instead of abbreviations (except for standard ones)
+   - Use clear, intention-revealing names for variables, functions, and files
+
+2. **Consistency**
+   - Apply consistent naming patterns across the entire codebase
+   - Follow language-appropriate casing conventions (camelCase, PascalCase, etc.)
+   - Adhere to established style guidelines for your language/framework
+
+3. **Semantic Naming Patterns**
+   - Start function names with verbs that indicate their action
+   - Use auxiliary verbs for boolean variables (is/has/can/should)
+   - Apply prefixes for specific purposes (e.g., "handle" for event functions)
+
+4. **Readability Focus**
+   - Prioritize readability over cleverness
+   - Maintain clarity in code structure and logic flow
+
+## Code Quality
+
+1. **DRY and KISS Principles**
+   - Don't Repeat Yourself - avoid code duplication
+   - Keep It Simple - avoid unnecessary complexity
+
+2. **Self-Documenting Code**
+   - Write code that clearly reveals its purpose
+   - Write comments explaining "why" rather than "what"
+   - Document public interfaces, classes, and methods
+
+3. **Data Management**
+   - Define clear interfaces/contracts between components
+   - Use immutable data structures where appropriate
+   - Define named constants instead of magic numbers/values
+   - Choose efficient data structures for specific problems
+
+4. **Parameter Management**
+   - Minimize the number of parameters in functions
+   - Check parameters for validity early in functions
+
+5. **Boy Scout Rule** 
+   - Always leave code better than you found it
+   - Refactor code regularly to improve design
+
+6. **Refactoring and Technical Debt**
+   - Address technical debt proactively
+   - Make small, incremental improvements to code quality
+
+## Error Handling
+
+1. **Robust Error Handling**
+   - Implement consistent error handling patterns throughout your application
+   - Handle errors appropriately without using them for control flow
+   - Use exceptions for unexpected errors; add context when catching exceptions
+   - Document all exceptions that methods might throw
+
+2. **Error Communication**
+   - Provide informative error messages to users
+   - Include meaningful context in error messages
+   - Use appropriate error types for different error conditions
+
+3. **Validation and Guards**
+   - Validate all user inputs thoroughly
+   - Implement early validation in functions
+   - Use guard clauses to handle preconditions and invalid states
+
+## Testing
+
+1. **Test Structure and Organization**
+   - Follow established patterns like Arrange-Act-Assert or Given-When-Then
+   - Use clear and consistent naming for test variables and cases
+   - Make tests independent and repeatable
+
+2. **Comprehensive Coverage**
+   - Write tests for each public function/method/component
+   - Include an appropriate mix of unit, integration, and end-to-end tests
+   - Test both happy paths and error scenarios
+   - Test edge cases thoroughly
+   - Aim for high test coverage, especially on critical paths
+
+3. **Test Isolation**
+   - Use test doubles to simulate dependencies
+   - Implement contract testing for microservices
+
+4. **Advanced Testing Practices**
+   - Consider test-driven development (TDD) for critical components
+   - Use chaos engineering to test system resilience
+
+## Security
+
+1. **Security-First Approach**
+   - Always prioritize security in design and implementation
+   - Apply principle of least privilege
+   - Implement proper authentication and authorization
+   - Validate and sanitize all user inputs
+   - Handle sensitive data appropriately (encryption, masking)
+
+2. **Secure Communications**
+   - Use HTTPS everywhere with proper encryption
+   - Store secrets and sensitive values in environment variables
+   - Follow established security guidelines for your platform
+
+3. **Security Maintenance**
+   - Conduct regular security reviews of code and dependencies
+   - Keep dependencies updated to address security vulnerabilities
+
+## Performance and Optimization
+
+1. **Optimization Priorities**
+   - Focus on readability over premature optimization
+   - Optimize critical paths and high-frequency operations
+   - Monitor and address performance bottlenecks
+   - Don't optimize before you have evidence of a problem
+
+2. **Resource Management**
+   - Optimize assets (images, scripts, etc.) for faster loading
+   - Implement lazy loading for non-critical resources
+   - Apply code splitting for large applications
+   - Implement appropriate caching strategies
+   - Use resources efficiently (memory, CPU, network)
+
+3. **Data Efficiency**
+   - Optimize queries and data access patterns
+   - Implement caching for frequently accessed data
+   - Optimize network requests and data transfers
+
+4. **State Management**
+   - Implement efficient state management patterns
+   - Synchronize state between different parts of your application effectively
+
+5. **Performance Testing**
+   - Benchmark critical operations
+   - Implement performance monitoring
+
+## UI and User Experience
+
+1. **Responsive Design**
+   - Implement responsive design with a mobile-first approach
+   - Ensure cross-browser and cross-platform compatibility
+   - Design for various screen sizes
+
+2. **Accessibility**
+   - Follow accessibility best practices
+   - Implement proper semantic structure in markup
+   - Ensure keyboard navigation support
+   - Support text scaling and font adjustments
+   - Add appropriate accessibility attributes
+
+3. **User Interaction**
+   - Provide immediate visual feedback for user interactions
+   - Create intuitive controls that are easy to understand
+   - Design interfaces that clearly represent system state
+   - Make interactive elements appropriate size for touch
+
+## Documentation
+
+1. **Code Documentation**
+   - Document public APIs and complex logic
+   - Add comments to explain complex algorithms and the reasoning behind them
+   - Focus on explaining "why" rather than "what"
+
+2. **Project Documentation**
+   - Maintain proper environment configuration documentation
+   - Create comprehensive guides for onboarding
+   - Maintain architecture diagrams and technical decisions
+   - Create a comprehensive README with setup instructions and usage examples
+
+3. **Documentation Maintenance**
+   - Keep documentation updated with code changes
+   - Provide usage examples where helpful
+
+## Development Workflow
+
+1. **Version Control**
+   - Make small, focused commits with clear messages
+   - Each commit should represent a logical unit of work
+   - Use appropriate branching strategies
+   - Clearly mark and document breaking changes
+
+2. **Continuous Integration/Deployment**
+   - Set up CI/CD pipelines with automated testing
+   - Use feature flags for safer releases
+   - Consider canary deployments or blue-green deployment strategies
+
+3. **Code Review**
+   - Implement proper code review processes
+   - Practice thorough code reviews with constructive feedback
+
+4. **Observability and Monitoring**
+   - Implement observability (metrics, logging, tracing)
+   - Set up automated alerting and incident response
+   - Define and track service level objectives (SLOs)
+
+5. **Sustainable Development**
+   - Optimize resource usage to minimize environmental impact
+   - Design for longevity and adaptability
+   - Implement proper data lifecycle management
+   - Base decisions on evidence rather than assumptions
+
+# 通用软件开发最佳实践
+
+## 规划与设计
+1. **先思考后编码** - 在实现前详细规划你的方法和推理过程
+2. **需求明确性** - 在编码前明确定义用户需求和流程
+3. **分解复杂性** - 将复杂问题分解为可管理的步骤
+4. **先写伪代码** - 在实现功能前先编写详细的伪代码
+5. **重用现有解决方案** - 创建新组件前检查是否已存在类似组件
+
+## 代码结构与组织
+
+1. **单一职责原则**
+   - 每个函数或类应该只做好一件事
+   - 编写小型、专注且具有明确定义目的的函数和类
+   - 函数保持在20条指令以内，类保持在200条指令以内，公共方法/属性少于10个
+
+2. **模块化**
+   - 创建具有单一职责的小型专注组件
+   - 将代码组织成可独立维护的逻辑模块
+   - 优先选择迭代和模块化而非代码重复（DRY原则）
+   - 创建可重用组件以避免冗余
+
+3. **关注点分离**
+   - 明确分离UI、业务逻辑和数据层
+   - 使用适当的抽象和封装以隐藏实现细节
+   - 在应用程序的不同层之间建立明确的边界
+
+4. **文件和项目组织**
+   - 结构化文件：导出组件在前，辅助函数、静态内容和类型在后
+   - 使用逻辑文件夹层次结构和一致的命名约定
+   - 在逻辑目录中组织文件（组件、工具、测试等）
+   - 每个文件应只包含相关内容
+
+5. **架构模式**
+   - 在架构中应用SOLID原则
+   - 优先选择组合而非继承
+   - 对常见问题使用适当的设计模式
+   - 使用依赖注入而非硬编码资源
+   - 考虑为解耦系统采用事件驱动架构
+   - 评估六边形/端口与适配器架构以提高可测试性
+
+6. **控制流**
+   - 通过使用提前返回和守卫条件避免深层嵌套（将嵌套限制在最多2-3层）
+   - 简化条件语句，为简单语句使用简洁的语法
+   - 使用守卫条款处理前置条件和无效状态
+
+## 命名与风格
+
+1. **描述性和有目的的名称**
+   - 为所有变量、函数和类使用能揭示意图的有意义名称
+   - 选择完整单词而非缩写（标准缩写除外）
+   - 为变量、函数和文件使用清晰、表明意图的名称
+
+2. **一致性**
+   - 在整个代码库中应用一致的命名模式
+   - 遵循适合语言的大小写约定（驼峰式、帕斯卡式等）
+   - 遵循你的语言/框架的既定风格指南
+
+3. **语义命名模式**
+   - 函数名以表示其行为的动词开头
+   - 为布尔变量使用辅助动词（is/has/can/should）
+   - 为特定目的应用前缀（例如，事件函数使用"handle"前缀）
+
+4. **可读性优先**
+   - 优先考虑可读性而非技巧性
+   - 保持代码结构和逻辑流程的清晰性
+
+## 代码质量
+
+1. **DRY和KISS原则**
+   - 不要重复自己 - 避免代码重复
+   - 保持简单 - 避免不必要的复杂性
+
+2. **自文档化代码**
+   - 编写能清晰揭示其目的的代码
+   - 编写解释"为什么"而非"是什么"的注释
+   - 为公共接口、类和方法提供文档
+
+3. **数据管理**
+   - 在组件之间定义清晰的接口/合约
+   - 在适当的情况下使用不可变数据结构
+   - 定义命名常量而非魔术数字/值
+   - 为特定问题选择高效的数据结构
+
+4. **参数管理**
+   - 最小化函数中的参数数量
+   - 在函数早期检查参数有效性
+
+5. **童子军规则**
+   - 始终使代码比你发现时更好
+   - 定期重构代码以改进设计
+
+6. **重构和技术债务**
+   - 积极解决技术债务
+   - 对代码质量进行小型、增量式改进
+
+## 错误处理
+
+1. **健壮的错误处理**
+   - 在整个应用程序中实施一致的错误处理模式
+   - 适当处理错误，而不是用错误来控制流程
+   - 使用异常处理非预期错误；捕获异常时添加上下文信息
+   - 记录方法可能抛出的所有异常
+
+2. **错误沟通**
+   - 向用户提供信息丰富的错误消息
+   - 在错误消息中包含有意义的上下文
+   - 为不同的错误条件使用适当的错误类型
+
+3. **验证和守卫**
+   - 彻底验证所有用户输入
+   - 在函数中实施早期验证
+   - 使用守卫条款处理前置条件和无效状态
+
+## 测试
+
+1. **测试结构与组织**
+   - 遵循已建立的模式，如准备-执行-断言或Given-When-Then
+   - 为测试变量和测试用例使用清晰一致的命名
+   - 使测试保持独立性和可重复性
+
+2. **全面覆盖**
+   - 为每个公共函数/方法/组件编写测试
+   - 包括适当混合的单元测试、集成测试和端到端测试
+   - 测试正常路径和错误场景
+   - 彻底测试边缘情况
+   - 争取高测试覆盖率，尤其是关键路径
+
+3. **测试隔离**
+   - 使用测试替身模拟依赖
+   - 为微服务实施契约测试
+
+4. **高级测试实践**
+   - 对关键组件考虑测试驱动开发（TDD）
+   - 使用混沌工程测试系统弹性
+
+## 安全性
+
+1. **安全优先方法**
+   - 在设计和实现中始终优先考虑安全性
+   - 应用最小权限原则
+   - 实施适当的身份验证和授权
+   - 验证和净化所有用户输入
+   - 适当处理敏感数据（加密、掩码）
+
+2. **安全通信**
+   - 全面使用HTTPS并进行适当加密
+   - 在环境变量中存储密钥和敏感值
+   - 遵循你平台的既定安全指南
+
+3. **安全维护**
+   - 对代码和依赖项进行定期安全审查
+   - 更新依赖项以解决安全漏洞
+
+## 性能与优化
+
+1. **优化优先级**
+   - 优先考虑可读性而非过早优化
+   - 优化关键路径和高频操作
+   - 监控并解决性能瓶颈
+   - 在有问题证据前不要优化
+
+2. **资源管理**
+   - 优化资源（图像、脚本等）以加快加载速度
+   - 为非关键资源实现懒加载
+   - 为大型应用程序应用代码分割
+   - 实施适当的缓存策略
+   - 高效使用资源（内存、CPU、网络）
+
+3. **数据效率**
+   - 优化查询和数据访问模式
+   - 为频繁访问的数据实现缓存
+   - 优化网络请求和数据传输
+
+4. **状态管理**
+   - 实施高效的状态管理模式
+   - 有效同步应用程序不同部分之间的状态
+
+5. **性能测试**
+   - 对关键操作进行基准测试
+   - 实施性能监控
+
+## UI和用户体验
+
+1. **响应式设计**
+   - 采用移动优先的方法实现响应式设计
+   - 确保跨浏览器和跨平台兼容性
+   - 为各种屏幕尺寸设计
+
+2. **无障碍性**
+   - 遵循无障碍最佳实践
+   - 在标记中实现适当的语义结构
+   - 确保支持键盘导航
+   - 支持文本缩放和字体调整
+   - 添加适当的无障碍属性
+
+3. **用户交互**
+   - 为用户交互提供即时视觉反馈
+   - 创建直观且易于理解的控件
+   - 设计能清晰表示系统状态的界面
+   - 使交互元素具有适合触摸的尺寸
+
+## 文档
+
+1. **代码文档**
+   - 为公共API和复杂逻辑编写文档
+   - 添加注释解释复杂算法及其背后的推理
+   - 注重解释"为什么"而非"是什么"
+
+2. **项目文档**
+   - 维护适当的环境配置文档
+   - 创建全面的入职指南
+   - 维护架构图和技术决策
+   - 创建包含设置指南和使用示例的全面README
+
+3. **文档维护**
+   - 随代码变更保持文档更新
+   - 在有帮助的地方提供使用示例
+
+## 开发工作流
+
+1. **版本控制**
+   - 进行小型、专注的提交，提供清晰的消息
+   - 每次提交应代表一个逻辑工作单元
+   - 使用适当的分支策略
+   - 明确标记并记录破坏性变更
+
+2. **持续集成/部署**
+   - 设置带有自动化测试的CI/CD管道
+   - 使用功能开关实现更安全的发布
+   - 考虑金丝雀部署或蓝绿部署策略
+
+3. **代码审查**
+   - 实施适当的代码审查流程
+   - 实践彻底的代码审查，提供建设性反馈
+
+4. **可观测性和监控**
+   - 实施可观测性（指标、日志、追踪）
+   - 设置自动告警和事件响应
+   - 定义和跟踪服务水平目标（SLOs）
+
+5. **可持续开发**
+   - 优化资源使用以最小化环境影响
+   - 设计以实现长期可用性和适应性
+   - 实施适当的数据生命周期管理
+   - 基于证据而非假设做出决策

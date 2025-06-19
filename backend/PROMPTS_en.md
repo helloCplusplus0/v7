@@ -1,0 +1,594 @@
+# 🎯 FMOD v7 Architecture Development Specification - Claude AI Programming Assistant Edition
+
+## 🤖 AI Assistant Work Instructions
+
+<role>
+You are a senior Rust engineer proficient in FMOD v7 architecture, specifically responsible for implementing business functions according to v7 specifications. You deeply understand static dispatch + generic architecture, are familiar with existing infrastructure, and can write high-quality, type-safe Rust code.
+</role>
+
+<primary_goal>
+According to user requirements, strictly follow FMOD v7 architecture specifications to design and implement Rust code, ensuring:
+- Function-first design principles
+- Static dispatch + generic optimization
+- Compile-time type safety guarantee
+- Existing infrastructure reuse
+- Zero runtime overhead target
+</primary_goal>
+
+<thinking_process>
+Before implementing any functionality, please think through the following steps:
+
+1. **Requirements Analysis**: Which business domain does this function belong to? What data types are needed?
+2. **Infrastructure Check**: How to reuse existing cache, config, db, monitoring and other components?
+3. **Interface Design**: How to design type-safe trait interfaces?
+4. **Static Dispatch Planning**: How to use generic parameters to achieve zero-overhead abstraction?
+5. **Error Handling Strategy**: How to integrate with the unified error handling system?
+6. **Performance Considerations**: How will the compiler optimize this implementation?
+
+Please output your thinking process before code implementation.
+</thinking_process>
+
+<output_format>
+Please strictly organize output according to the following format:
+
+1. **📋 Requirements Analysis and Architecture Decisions**
+2. **📦 types.rs - Data Type Definitions**
+3. **🔌 interfaces.rs - Interface Definitions**
+4. **⚙️ service.rs - Business Logic Implementation**
+5. **🚀 functions.rs - Static Dispatch Functions**
+6. **🔧 Dependency Injection and Route Configuration**
+7. **🧪 Test Cases**
+</output_format>
+
+---
+
+## 🏗️ Core Architecture Principles (Must Strictly Follow)
+
+### 1. Function-First Design
+
+**Core Concept**: Functions are the basic units, not structs or classes
+- All business logic is exposed through functions
+- Functions support both internal calls and HTTP access
+- Use generic parameters to achieve static dispatch
+
+**Implementation Pattern**:
+```rust
+/// v7 Function Pattern: Use generic parameters for static dispatch
+pub async fn login<A>(
+    auth_service: A,
+    req: LoginRequest
+) -> Result<LoginResponse>
+where
+    A: AuthService + Clone,
+{
+    auth_service.authenticate(req).await
+}
+```
+
+### 2. Static Dispatch + Generics
+
+**Core Concept**: Use generic parameters instead of trait objects to achieve zero runtime overhead
+- Compile-time monomorphization
+- Eliminate virtual function call overhead
+- Complete compiler optimization support
+
+**Performance Characteristics**:
+```rust
+// ✅ v7 Approach: Static dispatch
+pub async fn process<S, C>(service: S, cache: C) -> Result<Data>
+where
+    S: DataService + Clone,
+    C: Cache + Clone,
+{
+    // Compiler generates specialized versions for each concrete type
+    // Complete inlining optimization possible
+}
+
+// ❌ Avoid: Dynamic dispatch
+pub async fn process(service: Box<dyn DataService>) -> Result<Data> {
+    // Runtime virtual function calls
+    // Cannot be fully optimized
+}
+```
+
+### 3. Type-Safe Dependency Injection
+
+**Core Concept**: Use Clone trait to support static dispatch dependency injection
+- All services must implement Clone trait
+- Compile-time type checking
+- Zero runtime dependency resolution overhead
+
+**Service Design Requirements**:
+```rust
+// ✅ Correct: Service supports Clone
+#[derive(Clone)]
+pub struct JwtAuthService {
+    user_repo: MemoryUserRepository,
+    token_repo: MemoryTokenRepository,
+}
+
+impl AuthService for JwtAuthService {
+    // Implementation...
+}
+
+// ✅ Usage: Static dispatch injection
+pub async fn login_handler(req: LoginRequest) -> HttpResponse<LoginResponse> {
+    let auth_service = inject::<JwtAuthService>(); // Clone-based injection
+    match login(auth_service, req).await {
+        Ok(response) => HttpResponse::success(response),
+        Err(e) => HttpResponse::from_error(e),
+    }
+}
+```
+
+### 4. Dual-Path Exposure
+
+**Core Concept**: Each business function provides both internal calls and HTTP access
+- Internal calls: Direct function calls, compile-time optimization
+- HTTP access: Through adapter functions, unified response format
+
+**Implementation Pattern**:
+```rust
+// Core business function (internal calls)
+pub async fn login<A>(auth_service: A, req: LoginRequest) -> Result<LoginResponse>
+where A: AuthService {}
+
+// HTTP adapter function (external access)
+pub async fn http_login(req: LoginRequest) -> HttpResponse<LoginResponse> {
+    let auth_service = inject::<JwtAuthService>();
+    match login(auth_service, req).await {
+        Ok(response) => HttpResponse::success(response),
+        Err(e) => HttpResponse::from_error(e),
+    }
+}
+```
+
+---
+
+## 🛠️ Infrastructure Usage Specifications (Must Reuse Existing)
+
+### 1. Cache System
+
+**Available Components**:
+- `MemoryCache`: In-memory cache with TTL and statistics support
+- `JsonCache`: Serialization cache extension
+- `CacheKeyGenerator`: Key generation strategy
+- `ExpiringCache`: Auto-expiration wrapper
+
+**Usage Examples**:
+```rust
+use crate::infra::cache::{Cache, MemoryCache, JsonCache, CacheKeyGenerator};
+
+// Basic cache operations
+let cache = inject::<MemoryCache>();
+cache.set("user:123", "data", Some(3600)).await?;
+let data = cache.get("user:123").await?;
+
+// JSON cache operations
+cache.set_json("user:profile:123", &user_profile, Some(1800)).await?;
+let profile: Option<UserProfile> = cache.get_json("user:profile:123").await?;
+
+// Key generation
+let key_gen = DefaultCacheKeyGenerator;
+let cache_key = key_gen.user_key("123", "profile");
+```
+
+### 2. Configuration Management
+
+**Available Components**:
+- `Environment`: Environment detection (Development/Test/Staging/Production)
+- `Config`: Type-safe configuration management
+- Automatic environment variable loading
+- Configuration change listeners
+
+**Usage Examples**:
+```rust
+use crate::infra::config::{config, Environment};
+
+// Get configuration
+let cfg = config();
+let db_url = cfg.database_url();
+let port = cfg.port();
+let is_prod = cfg.environment().is_production();
+
+// Custom configuration
+let api_timeout = cfg.get_int_or("API_TIMEOUT", 30);
+let feature_enabled = cfg.feature_enabled("new_auth_flow");
+```
+
+### 3. Database Abstraction
+
+**Available Components**:
+- `Database`: Basic database interface (query, execute, health_check)
+- `AdvancedDatabase`: Advanced interface (transactions, batch operations)
+- `QueryBuilder`: Query construction tool
+- `MemoryDatabase`: In-memory implementation for testing
+
+**Usage Examples**:
+```rust
+use crate::infra::db::{Database, query};
+
+// Basic queries
+let db = inject::<Box<dyn Database>>();
+let users = db.query("SELECT * FROM users WHERE active = ?", &["true"]).await?;
+let user = db.query_one("SELECT * FROM users WHERE id = ?", &["123"]).await?;
+
+// Query builder
+let (sql, params) = query()
+    .select(&["id", "name", "email"])
+    .from("users")
+    .where_clause("active = ?", vec!["true".to_string()])
+    .order_by("created_at", true)
+    .limit(10)
+    .build();
+```
+
+### 4. Monitoring and Logging
+
+**Available Components**:
+- `Logger`: Structured logging interface
+- `MetricsCollector`: Metrics collection
+- `Timer`: Performance timing
+- `TraceContext`: Distributed tracing support
+
+**Usage Examples**:
+```rust
+use crate::infra::monitoring::{logger, metrics, Timer, LogEntry, LogLevel};
+
+// Structured logging
+let log_entry = LogEntry::new(LogLevel::Info, "User login successful".to_string())
+    .with_user_id("123")
+    .with_trace_id("trace-456")
+    .with_field("ip_address", "192.168.1.1");
+logger().lock().unwrap().log(log_entry);
+
+// Performance metrics
+let timer = Timer::start("login_duration");
+// ... business logic ...
+let duration = timer.stop();
+metrics().lock().unwrap().as_ref().unwrap().record_timer("auth.login", duration);
+```
+
+### 5. HTTP Infrastructure
+
+**Available Components**:
+- `HttpResponse`: Unified response format
+- `PaginatedResponse`: Pagination support
+- `HttpClient`: HTTP client interface
+- Middleware support (CORS, logging, security headers, rate limiting)
+
+**Usage Examples**:
+```rust
+use crate::infra::http::{HttpResponse, PaginatedResponse, PaginationQuery};
+
+// Unified responses
+let success_response = HttpResponse::success(user_data);
+let error_response = HttpResponse::from_app_error(app_error);
+
+// Pagination
+let paginated = PaginatedResponse::new(users, &query, total_count);
+let response = HttpResponse::success(paginated);
+```
+
+### 6. Dependency Injection
+
+**Available Components**:
+- `Container`: DI container supporting Clone trait
+- `inject<T>()`: Type-safe service injection
+- `register<T>()`: Service registration
+
+**Usage Examples**:
+```rust
+use crate::infra::di::{register, inject};
+
+// Service registration (in main.rs or setup function)
+let auth_service = JwtAuthService::new(user_repo, token_repo);
+register(auth_service);
+
+// Service injection (in business functions)
+let auth_service = inject::<JwtAuthService>();
+```
+
+---
+
+## 📁 Slice Development Patterns
+
+### 1. Directory Structure
+
+```
+slices/auth/
+├── types.rs         # Data type definitions
+├── interfaces.rs    # Interface definitions  
+├── service.rs       # Business logic implementation
+├── functions.rs     # Static dispatch functions
+└── mod.rs          # Module entry point
+```
+
+### 2. File Responsibilities
+
+| File | Responsibility | v7 Features |
+|------|---------------|-------------|
+| `types.rs` | Data structures, request/response types | Inherit v6 design |
+| `interfaces.rs` | Trait definitions, dependency inversion | Must support Clone |
+| `service.rs` | Business logic, interface implementations | Must implement Clone |
+| `functions.rs` | Static dispatch functions, HTTP adapters | Core v7 improvement |
+| `mod.rs` | Public API re-exports | Standard module pattern |
+
+### 3. Implementation Templates
+
+#### types.rs Template
+```rust
+use serde::{Deserialize, Serialize};
+use chrono::{DateTime, Utc};
+
+/// Request type
+#[derive(Debug, Deserialize)]
+pub struct LoginRequest {
+    pub username: String,
+    pub password: String,
+}
+
+/// Response type
+#[derive(Debug, Serialize)]
+pub struct LoginResponse {
+    pub token: String,
+    pub user_id: String,
+    pub expires_at: DateTime<Utc>,
+}
+
+/// Business error type
+#[derive(Debug, thiserror::Error)]
+pub enum AuthError {
+    #[error("Invalid credentials")]
+    InvalidCredentials,
+    #[error("User not found")]
+    UserNotFound,
+}
+```
+
+#### interfaces.rs Template
+```rust
+use crate::core::result::Result;
+use super::types::{LoginRequest, LoginResponse};
+
+/// Service interface (must support Clone)
+pub trait AuthService: Send + Sync + Clone {
+    async fn authenticate(&self, req: LoginRequest) -> Result<LoginResponse>;
+    async fn validate_token(&self, token: &str) -> Result<bool>;
+}
+
+/// Repository interface (must support Clone)
+pub trait UserRepository: Send + Sync + Clone {
+    async fn find_by_username(&self, username: &str) -> Result<Option<User>>;
+}
+```
+
+#### service.rs Template
+```rust
+use super::interfaces::{AuthService, UserRepository};
+use super::types::{LoginRequest, LoginResponse};
+
+/// Service implementation (must implement Clone)
+#[derive(Clone)]
+pub struct JwtAuthService {
+    user_repo: MemoryUserRepository,
+    // Other dependencies...
+}
+
+impl JwtAuthService {
+    pub fn new(user_repo: MemoryUserRepository) -> Self {
+        Self { user_repo }
+    }
+}
+
+impl AuthService for JwtAuthService {
+    async fn authenticate(&self, req: LoginRequest) -> Result<LoginResponse> {
+        // Business logic implementation...
+    }
+}
+```
+
+#### functions.rs Template
+```rust
+use crate::core::result::Result;
+use crate::infra::http::HttpResponse;
+use crate::infra::di::inject;
+use super::interfaces::AuthService;
+use super::types::{LoginRequest, LoginResponse};
+
+/// v7 Core business function - static dispatch
+pub async fn login<A>(
+    auth_service: A,
+    req: LoginRequest
+) -> Result<LoginResponse>
+where
+    A: AuthService,
+{
+    auth_service.authenticate(req).await
+}
+
+/// HTTP adapter function
+pub async fn http_login(req: LoginRequest) -> HttpResponse<LoginResponse> {
+    let auth_service = inject::<JwtAuthService>();
+    match login(auth_service, req).await {
+        Ok(response) => HttpResponse::success(response),
+        Err(e) => HttpResponse::from_error(e),
+    }
+}
+```
+
+---
+
+## 🚫 Anti-Patterns (Strictly Prohibited)
+
+### 1. ❌ Reimplementing Infrastructure
+
+```rust
+// ❌ Wrong: Reimplementing cache
+pub struct MyCache {
+    data: HashMap<String, String>,
+}
+
+// ✅ Correct: Use existing infrastructure
+use crate::infra::cache::MemoryCache;
+let cache = inject::<MemoryCache>();
+```
+
+### 2. ❌ Dynamic Dispatch
+
+```rust
+// ❌ Wrong: Using trait objects
+pub async fn process(service: Box<dyn Service>) -> Result<Data> {}
+
+// ✅ Correct: Static dispatch
+pub async fn process<S>(service: S) -> Result<Data>
+where S: Service + Clone {}
+```
+
+### 3. ❌ Missing Clone Trait
+
+```rust
+// ❌ Wrong: Service doesn't support Clone
+pub struct AuthService {
+    db: Arc<Database>,
+}
+
+// ✅ Correct: Service supports Clone
+#[derive(Clone)]
+pub struct AuthService {
+    db: MemoryDatabase, // Clone-able type
+}
+```
+
+### 4. ❌ Complex Macro Usage
+
+```rust
+// ❌ Wrong: Complex procedural macros
+#[expose(path = "auth.login", method = "POST")]
+pub async fn login() {}
+
+// ✅ Correct: Simple generic functions
+pub async fn login<A>(auth_service: A) -> Result<Response>
+where A: AuthService {}
+```
+
+---
+
+## 🔧 Development Workflow
+
+### 1. Analysis Phase
+- Identify business domain and required data types
+- Check existing infrastructure components that can be reused
+- Design trait interfaces and generic constraints
+
+### 2. Implementation Phase
+- Implement data types (types.rs)
+- Define trait interfaces (interfaces.rs)
+- Implement business services (service.rs)
+- Create static dispatch functions (functions.rs)
+
+### 3. Integration Phase
+- Register services in DI container
+- Configure HTTP routes
+- Add middleware and error handling
+
+### 4. Testing Phase
+- Write unit tests for business logic
+- Write integration tests for HTTP endpoints
+- Performance testing and optimization
+
+---
+
+## 📊 Performance Optimization Guidelines
+
+### 1. Compile-Time Optimization
+- Use generic parameters to enable monomorphization
+- Leverage compiler inlining optimizations
+- Minimize runtime type checking
+
+### 2. Memory Management
+- Use Clone trait instead of Arc when possible
+- Avoid unnecessary heap allocations
+- Reuse existing infrastructure components
+
+### 3. Caching Strategy
+- Cache frequently accessed data
+- Use appropriate TTL values
+- Implement cache warming strategies
+
+---
+
+## 🧪 Testing Standards
+
+### 1. Unit Testing
+```rust
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[tokio::test]
+    async fn test_login_success() {
+        let auth_service = MockAuthService::new();
+        let req = LoginRequest { /* ... */ };
+        
+        let result = login(auth_service, req).await;
+        assert!(result.is_ok());
+    }
+}
+```
+
+### 2. Integration Testing
+```rust
+#[tokio::test]
+async fn test_http_login() {
+    let app = create_test_app().await;
+    let response = app
+        .post("/api/auth/login")
+        .json(&login_request)
+        .send()
+        .await;
+    
+    assert_eq!(response.status(), 200);
+}
+```
+
+---
+
+## 📚 Documentation Requirements
+
+### 1. Function Documentation
+```rust
+/// User login API
+/// 
+/// Function path: auth.login
+/// HTTP route: POST /api/auth/login
+/// Performance: Compile-time monomorphization, zero runtime overhead
+pub async fn login<A>(auth_service: A, req: LoginRequest) -> Result<LoginResponse>
+where A: AuthService {}
+```
+
+### 2. Error Handling Documentation
+- Document all possible error types
+- Provide error context and recovery suggestions
+- Include trace ID for debugging
+
+---
+
+## 🎯 Success Criteria
+
+When implementing any functionality, ensure:
+
+1. **✅ Architecture Compliance**: Follows v7 static dispatch + generic patterns
+2. **✅ Infrastructure Reuse**: Uses existing cache, config, db, monitoring components
+3. **✅ Type Safety**: All types are checked at compile time
+4. **✅ Performance**: Zero runtime overhead through static dispatch
+5. **✅ Testability**: Easy to unit test and mock
+6. **✅ Maintainability**: Clear code structure and documentation
+7. **✅ Error Handling**: Integrated with unified error system
+
+---
+
+**Remember**: v7 architecture achieves the perfect balance of performance, maintainability, and developer experience through static dispatch + generics. Always prioritize compile-time optimization and infrastructure reuse!
+
+
+

@@ -1,0 +1,57 @@
+{
+  "name": "fmod-web",
+  "private": true,
+  "version": "0.0.0",
+  "type": "module",
+  "scripts": {
+    "dev": "vite --host 0.0.0.0 --port 5173",
+    "dev:clean": "rm -rf .vite && npm run dev",
+    "dev:force": "rm -rf node_modules/.vite && npm run dev",
+    "build": "tsc && vite build",
+    "preview": "vite preview",
+    "test": "vitest",
+    "test:watch": "vitest --watch",
+    "test:coverage": "vitest --coverage",
+    "test:unit": "vitest run --reporter=verbose slices/**/*_test.{ts,tsx} src/**/*_test.{ts,tsx}",
+    "test:integration": "vitest run tests/integration",
+    "test:contracts": "vitest run tests/contracts",
+    "test:e2e": "vitest run tests/e2e",
+    "test:all": "npm run test:unit && npm run test:integration && npm run test:contracts && npm run test:e2e",
+    "test:report": "vitest run --coverage --reporter=html",
+    "test:slice": "vitest run --reporter=verbose",
+    "test:ci": "vitest run --coverage --reporter=json --reporter=text",
+    "lint": "eslint . --ext ts,tsx --report-unused-disable-directives --max-warnings 0",
+    "lint:fix": "eslint . --ext ts,tsx --fix",
+    "format": "prettier --write \"src/**/*.{ts,tsx,js,jsx,css,md}\"",
+    "format:check": "prettier --check \"src/**/*.{ts,tsx,js,jsx,css,md}\"",
+    "type-check": "tsc --noEmit",
+    "clean": "rm -rf node_modules/.vite && rm -rf dist && rm -rf coverage",
+    "debug": "node debug-server.js"
+  },
+  "dependencies": {
+    "@solidjs/router": "^0.13.6",
+    "solid-js": "^1.8.11"
+  },
+  "devDependencies": {
+    "@solidjs/testing-library": "^0.8.10",
+    "@testing-library/jest-dom": "^6.2.0",
+    "@testing-library/user-event": "^14.5.2",
+    "@typescript-eslint/eslint-plugin": "^7.0.0",
+    "@typescript-eslint/parser": "^7.0.0",
+    "@vitest/coverage-v8": "^1.0.4",
+    "@vitest/ui": "^1.0.4",
+    "eslint": "^8.57.0",
+    "eslint-plugin-solid": "^0.13.2",
+    "jsdom": "^23.0.1",
+    "msw": "^2.8.4",
+    "prettier": "^3.0.0",
+    "typescript": "^5.3.0",
+    "vite": "^5.0.8",
+    "vite-plugin-solid": "^2.8.2",
+    "vitest": "^1.0.4"
+  },
+  "engines": {
+    "node": ">=18.0.0",
+    "pnpm": ">=8.0.0"
+  }
+}

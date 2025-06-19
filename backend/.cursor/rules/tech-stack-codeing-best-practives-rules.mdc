@@ -1,0 +1,680 @@
+---
+description: 
+globs: 
+alwaysApply: true
+---
+
+# Your rule content
+
+- You can @ files here
+- You can use markdown but dont have to
+
+
+I'll create a comprehensive set of best practices for your technology stack, focused on practical implementation and aligned with modern development principles. I'll organize this into clear sections covering all the technologies mentioned in your document.
+
+# Best Practices for Modern Full-Stack Development
+
+## Frontend (Vite + React)
+
+### Vite
+- Use the latest Vite version to leverage performance improvements and newer features
+- Configure build optimization for production with code splitting and lazy loading
+- Utilize Vite's development server for hot module replacement (HMR)
+- Implement environment variables using `.env` files with appropriate prefixes (`VITE_`)
+
+### React
+- Adopt functional components with hooks over class components
+- Implement proper component separation following the Single Responsibility Principle
+- Use React.memo for expensive rendering optimizations
+- Implement code splitting with React.lazy and Suspense
+- Structure projects with feature-based or atomic design patterns
+
+### State Management
+- For simple state, use React hooks (useState, useReducer, useContext)
+- For medium complexity, consider Zustand for its simplicity and performance
+- For complex applications, use Redux Toolkit with proper slice organization
+- Implement selector patterns to prevent unnecessary re-renders
+
+### Routing
+- Use React Router for standard applications
+- Consider TanStack Router for type-safe routing in TypeScript projects
+- Implement lazy loading for route components
+- Structure routes hierarchically for better organization
+
+### UI Components
+- Use Shadcn UI with Tailwind CSS for consistent design
+- Implement a design system with reusable components
+- Define theme variables centrally for consistent styling
+- Create component documentation with Storybook
+
+### Performance Optimization
+- Implement React Query or SWR for data fetching and caching
+- Use windowing techniques for long lists (react-window or react-virtualized)
+- Optimize bundle size with import cost tools and code splitting
+- Implement proper memoization strategies (useMemo, useCallback)
+
+## Mobile (Flutter)
+
+### Flutter Architecture
+- Implement clean architecture with separation of UI, domain, and data layers
+- Use feature-based project structure for better scalability
+- Implement SOLID principles throughout the codebase
+- Create reusable widgets for common UI patterns
+
+### State Management
+- Use Riverpod for complex state management with dependency injection
+- Implement Provider pattern for simpler state needs
+- Separate business logic from UI components
+- Utilize state notifiers for reactive programming
+
+### Routing
+- Use GoRouter for declarative routing with deep linking support
+- Implement route guards for authentication
+- Create abstraction layers for navigation service
+- Handle route transitions consistently
+
+### Performance
+- Minimize widget rebuilds with const constructors
+- Use widget keys appropriately for state preservation
+- Implement lazy loading for images and heavy components
+- Monitor performance with Flutter DevTools regularly
+
+### Cross-Platform Consistency
+- Create platform-specific adaptations when necessary
+- Implement responsive designs that work across device sizes
+- Use platform channel for native functionality when required
+- Test on multiple devices and OS versions
+
+## Backend (Go + Fiber + gRPC)
+
+### Go Programming
+- Follow standard Go project layout (https://github.com/golang-standards/project-layout)
+- Use modules and proper versioning
+- Implement error handling with proper context
+- Use contexts for cancellation and timeout handling
+- Implement structured logging with fields
+
+### Fiber Framework
+- Structure handlers with middleware separation
+- Implement proper error handling and status codes
+- Use route grouping for logical API organization
+- Implement input validation before processing
+- Use dependency injection for services
+
+### gRPC Implementation
+- Define clear service contracts in protobuf
+- Implement proper error handling with status codes
+- Use bidirectional streaming for real-time features
+- Implement interceptors for cross-cutting concerns
+- Set up proper timeout and retry policies
+
+### API Design
+- Create versioned APIs (v1, v2, etc.)
+- Implement consistent response formats
+- Use proper HTTP methods and status codes
+- Document APIs with OpenAPI/Swagger
+- Implement rate limiting and throttling
+
+## Database (PostgreSQL)
+
+### Schema Design
+- Design normalized schemas with proper relationships
+- Implement appropriate indexes for query optimization
+- Use database constraints for data integrity
+- Implement proper data types for efficient storage
+
+### Migrations
+- Use Goose or golang-migrate for database migrations
+- Version all schema changes
+- Implement both up and down migrations
+- Test migrations in development environment before production
+
+### Query Optimization
+- Use EXPLAIN ANALYZE for query performance tuning
+- Implement proper pagination for large datasets
+- Use proper JOIN strategies for complex queries
+- Consider materialized views for complex reporting queries
+
+### Connection Management
+- Use connection pooling with appropriate limits
+- Implement proper transaction management
+- Set up read replicas for scaling read operations
+- Monitor connection usage and timeouts
+
+## DevOps & Deployment
+
+### Docker
+- Create optimized multi-stage Docker builds
+- Use specific version tags for base images
+- Implement proper health checks
+- Minimize container size with .dockerignore
+
+### CI/CD
+- Implement GitHub Actions or GitLab CI for automated workflows
+- Run tests and linting on every pull request
+- Automate deployment to staging and production
+- Set up proper branch protection rules
+
+### Monitoring
+- Implement OpenTelemetry for distributed tracing
+- Set up Prometheus and Grafana for metrics visualization
+- Configure alerting with proper thresholds
+- Use structured logging with centralized collection (ELK stack)
+
+### Security
+- Implement proper authentication and authorization
+- Use environment variables for sensitive configuration
+- Implement rate limiting and CORS policies
+- Run dependency scanning for vulnerabilities
+- Implement JWT rotation and proper session management
+
+## Testing Strategy
+
+### Frontend Testing
+- Write unit tests for business logic with Vitest
+- Implement component testing with React Testing Library
+- Create integration tests for critical user flows
+- Set up end-to-end tests with Playwright or Cypress
+
+### Backend Testing
+- Implement unit tests for business logic
+- Use table-driven tests for multiple test cases
+- Create integration tests for API endpoints
+- Set up performance benchmarking for critical paths
+
+### Mobile Testing
+- Implement widget tests for UI components
+- Create integration tests for critical flows
+- Set up device testing with Firebase Test Lab
+- Implement screenshot testing for UI consistency
+
+## Cross-Platform Code Sharing
+
+### Shared Logic
+- Consider Rust with FFI for performance-critical code
+- Define common data models across platforms
+- Create shared validation logic when possible
+- Use code generation for repetitive tasks
+
+### API Clients
+- Generate API clients from OpenAPI specifications
+- Implement consistent error handling across platforms
+- Create abstractions for platform-specific implementations
+- Use consistent serialization/deserialization strategies
+
+---
+
+# 现代全栈开发最佳实践规范
+
+## 前端 (Vite + React)
+
+### Vite
+- 使用最新版本的Vite以利用性能改进和新特性
+- 为生产环境配置构建优化，包括代码分割和懒加载
+- 利用Vite的开发服务器进行热模块替换(HMR)
+- 使用`.env`文件并添加适当前缀(`VITE_`)来实现环境变量
+
+### React
+- 采用函数式组件和hooks而非类组件
+- 按照单一职责原则实现组件分离
+- 使用React.memo进行昂贵渲染优化
+- 使用React.lazy和Suspense实现代码分割
+- 通过基于特性或原子设计模式构建项目结构
+
+### 状态管理
+- 对于简单状态，使用React hooks (useState, useReducer, useContext)
+- 对于中等复杂度，考虑使用Zustand以获得简洁性和性能
+- 对于复杂应用，使用Redux Toolkit并合理组织slice
+- 实现选择器模式以防止不必要的重渲染
+
+### 路由管理
+- 标准应用使用React Router
+- TypeScript项目考虑使用TanStack Router实现类型安全的路由
+- 为路由组件实现懒加载
+- 分层结构化路由以提高组织性
+
+### UI组件
+- 使用Shadcn UI和Tailwind CSS实现一致的设计
+- 通过可复用组件实现设计系统
+- 集中定义主题变量以保持样式一致性
+- 使用Storybook创建组件文档
+
+### 性能优化
+- 使用React Query或SWR进行数据获取和缓存
+- 对长列表使用窗口化技术(react-window或react-virtualized)
+- 通过import cost工具和代码分割优化包大小
+- 实现合适的记忆化策略(useMemo, useCallback)
+
+## 移动端 (Flutter)
+
+### Flutter架构
+- 实现清晰架构，分离UI、领域和数据层
+- 使用基于特性的项目结构以提高可扩展性
+- 在整个代码库中实现SOLID原则
+- 为常见UI模式创建可复用组件
+
+### 状态管理
+- 使用Riverpod进行复杂状态管理和依赖注入
+- 对简单状态需求实现Provider模式
+- 将业务逻辑与UI组件分离
+- 利用状态通知器进行响应式编程
+
+### 路由管理
+- 使用GoRouter实现声明式路由和深度链接支持
+- 实现路由守卫进行身份验证
+- 创建导航服务的抽象层
+- 统一处理路由转换
+
+### 性能优化
+- 使用const构造函数减少组件重建
+- 适当使用widget keys保持状态
+- 为图像和重组件实现懒加载
+- 定期使用Flutter DevTools监控性能
+
+### 跨平台一致性
+- 必要时创建平台特定适配
+- 实现适用于各种设备尺寸的响应式设计
+- 使用平台通道实现原生功能
+- 在多种设备和操作系统版本上进行测试
+
+## 后端 (Go + Fiber + gRPC)
+
+### Go编程
+- 遵循标准Go项目布局 (https://github.com/golang-standards/project-layout)
+- 使用模块和适当版本管理
+- 实现带有上下文的错误处理
+- 使用contexts进行取消和超时处理
+- 实现结构化字段日志记录
+
+### Fiber框架
+- 通过中间件分离构建处理程序
+- 实现适当的错误处理和状态码
+- 使用路由分组进行逻辑API组织
+- 在处理前实现输入验证
+- 为服务使用依赖注入
+
+### gRPC实现
+- 在protobuf中定义清晰的服务契约
+- 使用状态码实现适当的错误处理
+- 使用双向流实现实时功能
+- 为横切关注点实现拦截器
+- 设置适当的超时和重试策略
+
+### API设计
+- 创建版本化API (v1, v2等)
+- 实现一致的响应格式
+- 正确使用HTTP方法和状态码
+- 使用OpenAPI/Swagger文档化API
+- 实现速率限制和节流
+
+## 数据库 (PostgreSQL)
+
+### 架构设计
+- 设计具有适当关系的规范化架构
+- 为查询优化实现适当索引
+- 使用数据库约束确保数据完整性
+- 实现适当的数据类型以高效存储
+
+### 迁移管理
+- 使用Goose或golang-migrate进行数据库迁移
+- 对所有架构更改进行版本控制
+- 实现向上和向下迁移
+- 在生产环境前在开发环境测试迁移
+
+### 查询优化
+- 使用EXPLAIN ANALYZE进行查询性能调优
+- 为大型数据集实现适当分页
+- 对复杂查询使用适当的JOIN策略
+- 考虑使用物化视图处理复杂报表查询
+
+### 连接管理
+- 使用连接池并设置适当限制
+- 实现适当的事务管理
+- 设置读副本以扩展读操作
+- 监控连接使用和超时
+
+## DevOps和部署
+
+### Docker
+- 创建优化的多阶段Docker构建
+- 为基础镜像使用特定版本标签
+- 实现适当的健康检查
+- 通过.dockerignore最小化容器大小
+
+### CI/CD
+- 实现GitHub Actions或GitLab CI进行自动化工作流
+- 在每个Pull Request上运行测试和代码检查
+- 自动化部署到测试和生产环境
+- 设置适当的分支保护规则
+
+### 监控
+- 实现OpenTelemetry进行分布式追踪
+- 设置Prometheus和Grafana进行指标可视化
+- 使用适当阈值配置告警
+- 使用结构化日志和集中收集(ELK堆栈)
+
+### 安全
+- 实现适当的身份验证和授权
+- 使用环境变量进行敏感配置
+- 实现速率限制和CORS策略
+- 运行依赖扫描检测漏洞
+- 实现JWT轮换和适当的会话管理
+
+## 测试策略
+
+### 前端测试
+- 使用Vitest为业务逻辑编写单元测试
+- 使用React Testing Library实现组件测试
+- 为关键用户流程创建集成测试
+- 使用Playwright或Cypress设置端到端测试
+
+### 后端测试
+- 为业务逻辑实现单元测试
+- 使用表驱动测试处理多个测试用例
+- 为API端点创建集成测试
+- 为关键路径设置性能基准测试
+
+### 移动测试
+- 为UI组件实现widget测试
+- 为关键流程创建集成测试
+- 使用Firebase Test Lab设置设备测试
+- 实现截图测试以保持UI一致性
+
+## 跨平台代码共享
+
+### 共享逻辑
+- 考虑使用Rust与FFI实现性能关键代码
+- 跨平台定义通用数据模型
+- 尽可能创建共享验证逻辑
+- 使用代码生成处理重复性任务
+
+### API客户端
+- 从OpenAPI规范生成API客户端
+- 在各平台实现一致的错误处理
+- 为平台特定实现创建抽象
+- 使用一致的序列化/反序列化策略
+
+这份规范涵盖了您技术栈中的所有关键组件，并提供了实用的最佳实践指南，可以应用于各种开发任务。通过遵循这些指南，您可以确保代码质量、性能和可维护性达到最佳水平。
+
+
+You're right to point out that I didn't explicitly include design patterns in the best practices document. Let me explain why and then provide a comprehensive section on design patterns tailored to your technology stack.
+
+# Design Patterns Best Practices for Your Technology Stack
+
+## Why Design Patterns Matter
+
+Design patterns provide proven solutions to common software design problems. When properly applied to your Vite + React, Flutter, and Go + Fiber + gRPC stack, they can significantly improve code organization, maintainability, and scalability. Here's a comprehensive guide on applying design patterns across your technology stack.
+
+## Frontend (React) Design Patterns
+
+### Component Patterns
+- **Compound Component Pattern**
+  - Implement for complex form components with multiple interrelated parts
+  - Example: Create form elements that share state without prop drilling
+  - Best with Shadcn UI to create cohesive component systems
+
+### State Management Patterns
+- **Observer Pattern** (foundational to React)
+  - Implement with Zustand or Redux Toolkit for global state
+  - Define clear state selectors to prevent unnecessary re-renders
+  - Use React Context for medium-scoped state that doesn't change frequently
+
+### Structural Patterns
+- **Higher Order Components (HOC)**
+  - Use sparingly and only for cross-cutting concerns like authentication or logging
+  - Prefer React Hooks when possible for better type safety and composition
+  - Document clearly with TypeScript interfaces
+
+### Behavioral Patterns
+- **Command Pattern**
+  - Implement for undo/redo functionality in complex forms
+  - Use with Zustand to track action history
+  - Especially useful for document editing features
+
+### React-Specific Patterns
+- **Container/Presentational Pattern**
+  - Separate data-fetching logic (containers) from rendering logic (presentational)
+  - Implement with React Query for data containers
+  - Enhance testability by focusing UI tests on presentational components
+
+## Mobile (Flutter) Design Patterns
+
+### State Management Patterns
+- **BLoC Pattern**
+  - Implement with Riverpod for complex state flows
+  - Separate business logic from UI entirely
+  - Use for features requiring complex state transitions
+
+### Creational Patterns
+- **Factory Method**
+  - Create widget factories for themed components
+  - Implement for platform-specific widget variations
+  - Use with your design system for consistent styling
+
+### Structural Patterns
+- **Decorator Pattern**
+  - Apply for layering widget functionality
+  - Implement for theme variations or feature flags
+  - Useful with animation overlays
+
+### Architectural Patterns
+- **Repository Pattern**
+  - Implement for data operations with clean abstractions
+  - Use with service locator pattern through Riverpod
+  - Create clear interfaces between data sources and business logic
+
+## Backend (Go) Design Patterns
+
+### Creational Patterns
+- **Dependency Injection**
+  - Implement through constructor injection in service handlers
+  - Use for Fiber handlers and middleware
+  - Enhance testability by allowing mock dependencies
+
+### Structural Patterns
+- **Adapter Pattern**
+  - Create adapters between gRPC services and REST endpoints
+  - Use for integrating third-party services
+  - Implement for database abstraction layers
+
+### Behavioral Patterns
+- **Strategy Pattern**
+  - Apply for algorithms that vary (authentication strategies, payment processors)
+  - Implement with interfaces in Go
+  - Use for feature toggles in production code
+
+### Concurrency Patterns
+- **Worker Pool Pattern**
+  - Implement for background processing tasks
+  - Use Go channels and goroutines
+  - Control concurrency with configurable worker counts
+
+### Go-Specific Patterns
+- **Middleware Pattern** (common in Fiber)
+  - Create composable middleware chains
+  - Implement for cross-cutting concerns (logging, authentication, rate limiting)
+  - Use functional composition for clean implementation
+
+## Cross-Platform Design Patterns
+
+### Data Patterns
+- **DTO (Data Transfer Object) Pattern**
+  - Create consistent DTOs across platforms
+  - Use code generation from schema definitions
+  - Implement validation strategies that work across platforms
+
+### Communication Patterns
+- **Gateway Pattern**
+  - Create API gateway abstractions in each platform
+  - Implement consistent error handling and retry logic
+  - Use for feature toggling across platforms
+
+### Integration Best Practices
+- **Avoid direct pattern translation** between platforms
+- **Adapt patterns** to each language's strengths and idioms
+- **Document pattern usage** consistently across repositories
+
+## Implementation Guidelines
+
+1. **Start with problem identification**
+   - Identify the core problem before selecting a pattern
+   - Document why a specific pattern was chosen
+
+2. **Keep it simple**
+   - Use the simplest pattern that solves the problem
+   - Avoid pattern overengineering for simple problems
+
+3. **Apply consistently**
+   - Create team conventions for pattern implementation
+   - Use consistent naming across the codebase
+
+4. **Test pattern implementations**
+   - Create unit tests that verify pattern behavior
+   - Test pattern edge cases specifically
+
+5. **Document pattern usage**
+   - Add comments explaining pattern implementation
+   - Create example code for team reference
+
+By incorporating these design patterns into your technology stack, you'll build a more maintainable, extensible, and robust system that can evolve with your requirements.
+
+---
+
+# 技术栈设计模式最佳实践规范
+
+## 设计模式的重要性
+
+设计模式为常见的软件设计问题提供经过验证的解决方案。当正确应用于您的Vite + React、Flutter和Go + Fiber + gRPC技术栈时，它们能显著提高代码组织性、可维护性和可扩展性。以下是针对您技术栈应用设计模式的综合指南。
+
+## 前端(React)设计模式
+
+### 组件模式
+- **复合组件模式**
+  - 用于实现多个相关部分的复杂表单组件
+  - 示例：创建不通过prop drilling共享状态的表单元素
+  - 最适合与Shadcn UI结合创建内聚的组件系统
+
+### 状态管理模式
+- **观察者模式**(React的基础)
+  - 使用Zustand或Redux Toolkit实现全局状态
+  - 定义清晰的状态选择器以防止不必要的重渲染
+  - 对不经常变化的中等范围状态使用React Context
+
+### 结构型模式
+- **高阶组件(HOC)**
+  - 仅针对身份验证或日志记录等横切关注点少量使用
+  - 尽可能优先使用React Hooks以获得更好的类型安全性和组合性
+  - 使用TypeScript接口清晰记录
+
+### 行为型模式
+- **命令模式**
+  - 用于实现复杂表单中的撤销/重做功能
+  - 与Zustand结合跟踪动作历史
+  - 特别适用于文档编辑功能
+
+### React特有模式
+- **容器/展示模式**
+  - 分离数据获取逻辑(容器)和渲染逻辑(展示)
+  - 使用React Query实现数据容器
+  - 通过专注于展示组件的UI测试提高可测试性
+
+## 移动端(Flutter)设计模式
+
+### 状态管理模式
+- **BLoC模式**
+  - 使用Riverpod实现复杂状态流
+  - 完全分离业务逻辑和UI
+  - 用于需要复杂状态转换的功能
+
+### 创建型模式
+- **工厂方法**
+  - 为主题化组件创建widget工厂
+  - 用于平台特定widget变体
+  - 与您的设计系统结合以保持样式一致性
+
+### 结构型模式
+- **装饰器模式**
+  - 用于分层widget功能
+  - 用于主题变化或功能标志
+  - 适用于动画叠加层
+
+### 架构模式
+- **仓库模式**
+  - 用于具有清晰抽象的数据操作
+  - 通过Riverpod使用服务定位器模式
+  - 在数据源和业务逻辑之间创建清晰接口
+
+## 后端(Go)设计模式
+
+### 创建型模式
+- **依赖注入**
+  - 通过服务处理程序中的构造函数注入实现
+  - 用于Fiber处理程序和中间件
+  - 通过允许模拟依赖提高可测试性
+
+### 结构型模式
+- **适配器模式**
+  - 在gRPC服务和REST端点之间创建适配器
+  - 用于集成第三方服务
+  - 用于数据库抽象层
+
+### 行为型模式
+- **策略模式**
+  - 应用于变化的算法(认证策略、支付处理器)
+  - 在Go中使用接口实现
+  - 用于生产代码中的功能切换
+
+### 并发模式
+- **工作池模式**
+  - 用于后台处理任务
+  - 使用Go通道和goroutines
+  - 通过可配置的工作者数量控制并发
+
+### Go特有模式
+- **中间件模式**(Fiber中常见)
+  - 创建可组合的中间件链
+  - 用于横切关注点(日志记录、认证、速率限制)
+  - 使用函数组合实现简洁实现
+
+## 跨平台设计模式
+
+### 数据模式
+- **DTO(数据传输对象)模式**
+  - 在各平台创建一致的DTO
+  - 使用模式定义的代码生成
+  - 实现跨平台的验证策略
+
+### 通信模式
+- **网关模式**
+  - 在每个平台创建API网关抽象
+  - 实现一致的错误处理和重试逻辑
+  - 用于跨平台功能切换
+
+### 集成最佳实践
+- **避免直接模式翻译**在平台之间
+- **调整模式**以适应每种语言的优势和惯用法
+- **在各存储库中一致记录模式使用**
+
+## 实施指南
+
+1. **从问题识别开始**
+   - 选择模式前先识别核心问题
+   - 记录选择特定模式的原因
+
+2. **保持简单**
+   - 使用能解决问题的最简单模式
+   - 避免对简单问题进行模式过度设计
+
+3. **一致应用**
+   - 创建团队模式实现约定
+   - 在代码库中使用一致的命名
+
+4. **测试模式实现**
+   - 创建验证模式行为的单元测试
+   - 专门测试模式边缘情况
+
+5. **记录模式使用**
+   - 添加解释模式实现的注释
+   - 为团队参考创建示例代码
+
+通过将这些设计模式整合到您的技术栈中，您将构建一个更可维护、可扩展和健壮的系统，能够随着需求的变化而发展。

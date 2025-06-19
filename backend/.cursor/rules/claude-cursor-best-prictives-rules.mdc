@@ -1,0 +1,612 @@
+---
+description: 
+globs: 
+alwaysApply: true
+---
+
+# Your rule content
+
+- You can @ files here
+- You can use markdown but dont have to
+
+# Claude Sonnet Prompt Engineering Best Practices for Cursor IDE
+
+## Core Principles for Development with Claude 3.7 Sonnet
+
+### Clear Intent Specification
+- **Specify output format** precisely at the beginning
+- **Define task parameters** with explicit boundaries
+- **Establish evaluation criteria** to guide Claude's response quality
+
+### Development Context Framing
+- **Specify technology context** (Vite+React/Flutter/Go+Fiber+gRPC)
+- **Define development phase** (planning/prototyping/implementation/refactoring)
+- **Indicate code integration points** with existing codebase
+
+### Progressive Elaboration
+- Start with high-level architecture, then drill down to implementation details
+- Request step-by-step reasoning for complex algorithms
+- Use follow-up prompts to refine solutions incrementally
+
+## Cursor IDE-Specific Integration Techniques
+
+### Code Block Optimization
+- Request code in markdown code blocks (```` ```language\ncode\n``` ````) for direct copying
+- Ask for filename and path comments for better Cursor organization
+- Request code in chunks appropriate for Cursor's cursor positioning
+
+### Leverage Cursor's AI Features
+- Use "summarize selected code" to provide context before asking new questions
+- Request explanations suitable for Cursor's inline documentation features
+- Specify refactoring instructions in ways that align with Cursor's refactoring capabilities
+
+## Technology Stack-Specific Prompt Templates
+
+### Frontend (Vite + React) Development
+
+#### Component Development
+```
+Generate a React component for [specific purpose] with these requirements:
+- Functional component using TypeScript
+- Use Shadcn UI and Tailwind CSS for styling
+- State management: [Zustand/Redux Toolkit/Context]
+- Required props: [list props with types]
+- Component structure following the [pattern name] pattern
+- Performance optimization considerations
+- Unit testing approach with Vitest
+
+The component should integrate with our existing system by [integration details].
+```
+
+#### State Management Implementation
+```
+Design a state management solution for [feature name] that:
+- Uses [Zustand/Redux Toolkit] following best practices
+- Handles the following state transitions: [list transitions]
+- Implements selectors for performance optimization
+- Includes error handling and loading states
+- Provides clear TypeScript types for all state elements
+
+Include code samples for store creation, selectors, and component integration.
+```
+
+### Mobile (Flutter) Development
+
+#### Flutter Widget Creation
+```
+Create a Flutter widget for [specific purpose] with these specifications:
+- StatefulWidget or StatelessWidget depending on requirements
+- State management with Riverpod
+- Implements the following UI behaviors: [list behaviors]
+- Handles these edge cases: [list edge cases]
+- Follows our established design system
+- Consider performance optimization for rendering
+
+Provide both the widget implementation and usage examples.
+```
+
+#### Flutter Architecture Design
+```
+Design the architecture for a Flutter [feature name] implementation that:
+- Follows clean architecture principles
+- Uses Riverpod for dependency injection and state management
+- Separates UI, domain, and data layers
+- Handles offline capabilities and synchronization
+- Implements error handling strategies
+
+Include folder structure, key files, and integration points.
+```
+
+### Backend (Go + Fiber + gRPC) Development
+
+#### API Endpoint Implementation
+```
+Implement a Go Fiber API endpoint for [functionality] that:
+- Follows RESTful principles
+- Uses dependency injection for services
+- Implements proper error handling with meaningful responses
+- Includes validation for request parameters
+- Applies appropriate middleware (auth, logging, etc.)
+- Follows our project structure conventions
+
+Provide all necessary files including handlers, middleware, and service implementations.
+```
+
+#### gRPC Service Definition
+```
+Design a gRPC service for [functionality] with:
+- Clear Protocol Buffer definition
+- Service interface implementation in Go
+- Error handling strategy
+- Authentication/authorization implementation
+- Integration with our existing systems
+- Performance considerations for streaming/non-streaming
+
+Include both .proto file and Go implementation.
+```
+
+## Advanced Techniques for Complex Development Tasks
+
+### Multi-Step Development Processes
+1. **Start with architecture overview**
+   - Request high-level design first
+   - Get file structure and component relationships
+   - Confirm approach before detailed implementation
+
+2. **Implement core functionality**
+   - Request most important features first
+   - Focus on correctness before optimization
+   - Get tested core code
+
+3. **Add edge cases and error handling**
+   - Specifically request handling for edge scenarios
+   - Improve error messages and recovery strategies
+   - Enhance validation and input processing
+
+4. **Optimize performance**
+   - Request performance analysis of initial implementation
+   - Get specific optimization recommendations
+   - Implement optimized version with benchmarks
+
+### Review and Refactoring
+```
+Review this [language] code for a [component/service/function] that [purpose]:
+
+[paste code]
+
+Please provide:
+1. Code quality assessment
+2. Potential bugs or edge cases not handled
+3. Performance optimization opportunities
+4. Refactoring suggestions following [pattern/principle]
+5. Improved implementation with comments explaining changes
+```
+
+### Testing Strategy Development
+```
+Create a comprehensive testing strategy for [component/service] that:
+- Includes unit tests for all critical paths
+- Provides integration test approaches
+- Covers edge cases and error conditions
+- Suggests mocking strategies for external dependencies
+- Aligns with our [Vitest/Go testing] environment
+
+Include test file structure and key test cases implementation.
+```
+
+## Debugging and Problem Solving with Claude
+
+### Error Analysis
+```
+I'm encountering this error in my [technology] project:
+
+[error message]
+
+Context:
+- File: [filename]
+- Relevant code: [code snippet]
+- Expected behavior: [description]
+- Steps to reproduce: [steps]
+
+Please analyze:
+1. Potential causes of this error
+2. Debugging steps to isolate the issue
+3. Suggested fixes with code examples
+4. Prevention strategies for the future
+```
+
+### Performance Optimization
+```
+I need to optimize this [language] code that's causing performance issues:
+
+[code snippet]
+
+Current performance metrics:
+- [metric details]
+
+Environment:
+- [relevant environment details]
+
+Please provide:
+1. Performance bottleneck analysis
+2. Optimization recommendations
+3. Refactored implementation with performance improvements
+4. Additional measurement points to verify improvements
+```
+
+## Best Practices for Cursor IDE Workflow Integration
+
+### Effective Code Insertion
+- Request code snippets with clear insertion points marked
+- Ask for before/after code context to help locate insertion points
+- Get implementation in complete files when possible for direct saving
+
+### Documentation Generation
+```
+Generate comprehensive documentation for this [component/service/module]:
+
+[code snippet or description]
+
+Please include:
+1. Overview and purpose
+2. API reference with parameters and return values
+3. Usage examples
+4. Integration points with other system components
+5. Common pitfalls and solutions
+6. JSDoc/GoDoc formatted comments for code integration
+```
+
+### Project Structure Guidance
+```
+Help me organize a [project type] project with these requirements:
+- Technologies: [list from your stack]
+- Key features: [list features]
+- Team size: [size]
+- Development process: [process]
+
+Provide:
+1. Folder structure with explanations
+2. File naming conventions
+3. Module organization approach
+4. Configuration management strategy
+5. Integration with Cursor IDE for optimal workflow
+```
+
+## Troubleshooting Common Claude Limitations
+
+### Knowledge Limitations
+- Specify relevant documentation versions when asking about libraries
+- Provide minimal context about proprietary systems Claude wouldn't know
+- Ask for general principles when specific documentation might be outdated
+
+### Code Completeness
+- Request complete implementations rather than partial snippets
+- Verify imports and dependencies are included
+- Ask for setup instructions when relevant
+
+### Context Limitations
+- Break down large codebases into meaningful chunks
+- Provide summary context before specific questions
+- Reference previous parts of conversation explicitly
+
+## Example Full Development Session
+
+### Initial Project Setup
+```
+I'm starting a new web application with the following requirements:
+- Frontend: Vite + React + TypeScript + Shadcn UI
+- State Management: Zustand
+- Backend: Go + Fiber
+- Database: PostgreSQL
+- Authentication: JWT
+
+Help me set up the project structure and initial configuration files. Focus on:
+1. Directory organization following best practices
+2. Essential configuration files 
+3. Development environment setup
+4. Initial build scripts and tooling
+
+I'm using Cursor IDE, so please format the response to facilitate easy copying of file contents and directory structure.
+```
+
+### Feature Implementation
+```
+I need to implement a user authentication system for my application. Based on our previous setup with Vite+React and Go+Fiber, please help me create:
+
+1. Backend implementation:
+   - User model and database schema
+   - Registration and login endpoints
+   - JWT generation and validation
+   - Middleware for protected routes
+
+2. Frontend implementation:
+   - Authentication state management with Zustand
+   - Login and registration forms using Shadcn UI
+   - Protected route handling in React Router
+   - User profile component
+
+For each component, provide code that follows our established patterns and integrates with the project structure we've defined.
+```
+
+---
+
+# Claude Sonnet 提示工程在 Cursor IDE 中的最佳实践
+
+## 与 Claude 3.7 Sonnet 开发的核心原则
+
+### 明确意图表达
+- 在提示开始时**精确指定输出格式**
+- **明确定义任务参数**及其边界
+- **建立评估标准**引导 Claude 生成高质量回应
+
+### 开发环境上下文框架
+- **明确技术背景**（Vite+React/Flutter/Go+Fiber+gRPC）
+- **定义开发阶段**（规划/原型/实现/重构）
+- **指明代码与现有代码库的集成点**
+
+### 逐步细化策略
+- 从高层架构开始，然后深入到实现细节
+- 对复杂算法请求逐步推理
+- 使用后续提示渐进式完善解决方案
+
+## Cursor IDE 特定集成技巧
+
+### 代码块优化
+- 请求使用 markdown 代码块（```` ```language\ncode\n``` ````)表示代码以便直接复制
+- 请求包含文件名和路径注释以便于 Cursor 组织
+- 请求适合 Cursor 光标定位的代码块
+
+### 利用 Cursor 的 AI 功能
+- 使用"摘要选定代码"功能提供上下文后再提问
+- 请求适合 Cursor 内联文档功能的解释
+- 以符合 Cursor 重构功能的方式指定重构指令
+
+## 技术栈特定提示模板
+
+### 前端（Vite + React）开发
+
+#### 组件开发
+```
+生成一个用于[特定目的]的React组件，要求如下：
+- 使用TypeScript的函数式组件
+- 使用Shadcn UI和Tailwind CSS进行样式设计
+- 状态管理：[Zustand/Redux Toolkit/Context]
+- 必需的props：[列出props及其类型]
+- 遵循[模式名称]模式的组件结构
+- 性能优化考虑
+- 使用Vitest的单元测试方法
+
+该组件应通过[集成细节]与我们现有系统集成。
+```
+
+#### 状态管理实现
+```
+为[功能名称]设计一个状态管理解决方案，要求：
+- 使用[Zustand/Redux Toolkit]并遵循最佳实践
+- 处理以下状态转换：[列出转换]
+- 实现选择器以优化性能
+- 包含错误处理和加载状态
+- 为所有状态元素提供清晰的TypeScript类型
+
+包括存储创建、选择器和组件集成的代码示例。
+```
+
+### 移动端（Flutter）开发
+
+#### Flutter Widget创建
+```
+创建一个用于[特定目的]的Flutter widget，规格如下：
+- 根据需求选择StatefulWidget或StatelessWidget
+- 使用Riverpod进行状态管理
+- 实现以下UI行为：[列出行为]
+- 处理这些边缘情况：[列出边缘情况]
+- 遵循我们已建立的设计系统
+- 考虑渲染性能优化
+
+提供widget实现和使用示例。
+```
+
+#### Flutter架构设计
+```
+设计Flutter[功能名称]实现的架构，要求：
+- 遵循清洁架构原则
+- 使用Riverpod进行依赖注入和状态管理
+- 分离UI、领域和数据层
+- 处理离线功能和同步
+- 实现错误处理策略
+
+包括文件夹结构、关键文件和集成点。
+```
+
+### 后端（Go + Fiber + gRPC）开发
+
+#### API端点实现
+```
+实现一个用于[功能]的Go Fiber API端点，要求：
+- 遵循RESTful原则
+- 使用依赖注入服务
+- 实现适当的错误处理并返回有意义的响应
+- 包括请求参数验证
+- 应用适当的中间件（认证、日志等）
+- 遵循我们的项目结构约定
+
+提供所有必要的文件，包括处理程序、中间件和服务实现。
+```
+
+#### gRPC服务定义
+```
+设计用于[功能]的gRPC服务，包括：
+- 清晰的Protocol Buffer定义
+- Go中的服务接口实现
+- 错误处理策略
+- 认证/授权实现
+- 与我们现有系统的集成
+- 流式/非流式性能考虑
+
+包括.proto文件和Go实现。
+```
+
+## 复杂开发任务的高级技巧
+
+### 多步骤开发流程
+1. **从架构概述开始**
+   - 首先请求高级设计
+   - 获取文件结构和组件关系
+   - 确认方法后再进行详细实现
+
+2. **实现核心功能**
+   - 首先请求最重要的功能
+   - 在优化前确保正确性
+   - 获取经测试的核心代码
+
+3. **添加边缘情况和错误处理**
+   - 专门请求处理边缘场景
+   - 改进错误信息和恢复策略
+   - 增强验证和输入处理
+
+4. **优化性能**
+   - 请求对初始实现进行性能分析
+   - 获取具体优化建议
+   - 实现带有基准测试的优化版本
+
+### 代码审查和重构
+```
+审查这个用于[目的]的[语言][组件/服务/函数]代码：
+
+[粘贴代码]
+
+请提供：
+1. 代码质量评估
+2. 未处理的潜在错误或边缘情况
+3. 性能优化机会
+4. 遵循[模式/原则]的重构建议
+5. 改进的实现，并附带解释更改的注释
+```
+
+### 测试策略开发
+```
+为[组件/服务]创建全面的测试策略，要求：
+- 包括所有关键路径的单元测试
+- 提供集成测试方法
+- 覆盖边缘情况和错误条件
+- 建议外部依赖的模拟策略
+- 与我们的[Vitest/Go测试]环境保持一致
+
+包括测试文件结构和关键测试用例实现。
+```
+
+## 使用Claude进行调试和问题解决
+
+### 错误分析
+```
+我在[技术]项目中遇到这个错误：
+
+[错误信息]
+
+上下文：
+- 文件：[文件名]
+- 相关代码：[代码片段]
+- 预期行为：[描述]
+- 重现步骤：[步骤]
+
+请分析：
+1. 此错误的潜在原因
+2. 隔离问题的调试步骤
+3. 建议修复方案及代码示例
+4. 未来预防策略
+```
+
+### 性能优化
+```
+我需要优化这段导致性能问题的[语言]代码：
+
+[代码片段]
+
+当前性能指标：
+- [指标详情]
+
+环境：
+- [相关环境详情]
+
+请提供：
+1. 性能瓶颈分析
+2. 优化建议
+3. 具有性能改进的重构实现
+4. 验证改进的额外测量点
+```
+
+## Cursor IDE工作流集成最佳实践
+
+### 有效代码插入
+- 请求标记有明确插入点的代码片段
+- 请求前后代码上下文以帮助定位插入点
+- 尽可能获取完整文件的实现，以便直接保存
+
+### 文档生成
+```
+为此[组件/服务/模块]生成全面文档：
+
+[代码片段或描述]
+
+请包括：
+1. 概述和用途
+2. API参考，包括参数和返回值
+3. 使用示例
+4. 与其他系统组件的集成点
+5. 常见陷阱和解决方案
+6. 用于代码集成的JSDoc/GoDoc格式注释
+```
+
+### 项目结构指导
+```
+帮我组织一个具有以下要求的[项目类型]项目：
+- 技术：[列出您技术栈中的技术]
+- 关键功能：[列出功能]
+- 团队规模：[规模]
+- 开发流程：[流程]
+
+提供：
+1. 文件夹结构及解释
+2. 文件命名约定
+3. 模块组织方法
+4. 配置管理策略
+5. 与Cursor IDE集成以实现最佳工作流
+```
+
+## 解决Claude常见限制
+
+### 知识限制
+- 询问库时指定相关文档版本
+- 提供Claude可能不了解的专有系统的最小上下文
+- 当特定文档可能过时时，询问一般原则
+
+### 代码完整性
+- 请求完整实现而非部分片段
+- 验证是否包含导入和依赖项
+- 在相关时请求设置说明
+
+### 上下文限制
+- 将大型代码库分解为有意义的块
+- 提供摘要上下文后再提出具体问题
+- 明确引用对话的先前部分
+
+## 完整开发会话示例
+
+### 初始项目设置
+```
+我正在开始一个具有以下要求的新Web应用程序：
+- 前端：Vite + React + TypeScript + Shadcn UI
+- 状态管理：Zustand
+- 后端：Go + Fiber
+- 数据库：PostgreSQL
+- 认证：JWT
+
+帮我设置项目结构和初始配置文件。重点关注：
+1. 遵循最佳实践的目录组织
+2. 基本配置文件
+3. 开发环境设置
+4. 初始构建脚本和工具
+
+我使用Cursor IDE，所以请以便于复制文件内容和目录结构的方式格式化回应。
+```
+
+### 功能实现
+```
+我需要为我的应用程序实现用户认证系统。基于我们之前使用Vite+React和Go+Fiber的设置，请帮我创建：
+
+1. 后端实现：
+   - 用户模型和数据库架构
+   - 注册和登录端点
+   - JWT生成和验证
+   - 受保护路由的中间件
+
+2. 前端实现：
+   - 使用Zustand的认证状态管理
+   - 使用Shadcn UI的登录和注册表单
+   - React Router中的受保护路由处理
+   - 用户个人资料组件
+
+对于每个组件，提供遵循我们已建立模式并与我们定义的项目结构集成的代码。
+```
+
+这份指南结合了Claude Sonnet的提示工程最佳实践与Cursor IDE的特定功能，为您的开发工作流提供了全面的框架。通过使用这些结构化提示，您可以最大限度地提高与Claude的协作效率，加速您的Vite+React、Flutter和Go+Fiber+gRPC技术栈开发。

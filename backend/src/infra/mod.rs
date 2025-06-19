@@ -1,0 +1,19 @@
+//! 基础设施层
+//! 
+//! 提供应用程序的基础设施组件，包括数据库、缓存、HTTP、配置等
+
+pub mod db;
+pub mod cache;
+pub mod di;
+pub mod http;
+pub mod config;
+pub mod monitoring;
+pub mod middleware;
+
+// 重新导出核心基础设施
+pub use db::*;
+pub use cache::*;
+pub use di::*;
+pub use http::*;
+pub use config::*;
+pub use monitoring::*; 
