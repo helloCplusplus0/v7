@@ -123,12 +123,38 @@ Architecture:
 push_to_gitea() {
     log_info "推送代码到 Gitea..."
     
-    # 推送主分支
-    git push -u origin main
+    # 检查当前分支名
+    current_branch=$(git branch --show-current)
+    log_info "当前分支: $current_branch"
+    
+    # 如果当前分支是 master，重命名为 main
+    if [ "$current_branch" = "master" ]; then
+        log_info "将 master 分支重命名为 main..."
+        git branch -m master main
+        current_branch="main"
+    fi
+    
+    # 设置上游分支并推送
+    log_info "推送 $current_branch 分支到远程仓库..."
+    git push -u origin "$current_branch"
+    
+    # 如果当前不在 main 分支，切换到 main
+    if [ "$current_branch" != "main" ]; then
+        git checkout main 2>/dev/null || {
+            log_info "创建 main 分支..."
+            git checkout -b main
+            git push -u origin main
+        }
+    fi
     
     # 创建并推送 develop 分支
     log_info "创建 develop 分支..."
-    git checkout -b develop
+    if git show-ref --verify --quiet refs/heads/develop; then
+        log_info "develop 分支已存在"
+        git checkout develop
+    else
+        git checkout -b develop
+    fi
     git push -u origin develop
     
     # 切换回 main 分支
