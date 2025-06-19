@@ -1,4 +1,4 @@
-name: FMOD v7 Full-Stack CI/CD
+name: FMOD v7 智能端口管理 CI/CD
 
 on:
   push:
@@ -7,9 +7,7 @@ on:
     branches: [main, develop]
 
 env:
-  REGISTRY: 192.168.31.84:5000
-  BACKEND_IMAGE: fmod-backend
-  FRONTEND_IMAGE: fmod-frontend
+  PROJECT_NAME: fmod-v7
 
 jobs:
   # 代码质量检查
@@ -43,22 +41,22 @@ jobs:
           cargo clippy --all-targets --all-features -- -D warnings
 
       # 前端代码检查
-      - name: Frontend Dependencies
+      - name: Install Frontend Dependencies
         run: |
           cd web
           npm ci
+
+      - name: TypeScript Check
+        run: |
+          cd web
+          npm run type-check
 
       - name: Frontend Lint
         run: |
           cd web
           npm run lint
 
-      - name: Frontend Type Check
-        run: |
-          cd web
-          npm run type-check
-
-  # 运行测试
+  # 测试阶段
   test:
     runs-on: ubuntu-latest
     needs: quality-check
@@ -77,43 +75,27 @@ jobs:
           cache-dependency-path: web/package-lock.json
 
       # 后端测试
-      - name: Backend Unit Tests
+      - name: Run Backend Tests
         run: |
           cd backend
           cargo test --verbose
 
-      - name: Backend Integration Tests
-        run: |
-          cd backend
-          mkdir -p data
-          DATABASE_URL=sqlite:./data/test.db cargo test --test integration
-
       # 前端测试
-      - name: Frontend Dependencies
+      - name: Install Frontend Dependencies
         run: |
           cd web
           npm ci
 
-      - name: Frontend Unit Tests
+      - name: Run Frontend Tests
         run: |
           cd web
-          npm run test:unit
+          npm run test
 
-      - name: Frontend Integration Tests
-        run: |
-          cd web
-          npm run test:integration
-
-      - name: Test Coverage
-        run: |
-          cd web
-          npm run test:coverage
-
-  # 构建 Podman 镜像
-  build:
+  # 智能端口部署
+  deploy:
     runs-on: ubuntu-latest
-    needs: test
-    if: github.ref == 'refs/heads/main'
+    needs: [quality-check, test]
+    if: github.event_name == 'push' && (github.ref == 'refs/heads/main' || github.ref == 'refs/heads/develop')
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
@@ -123,44 +105,150 @@ jobs:
           sudo apt-get update
           sudo apt-get install -y podman
 
-      - name: Build Backend Image
+      - name: Smart Port Detection and Deployment
         run: |
-          podman build -t $REGISTRY/$BACKEND_IMAGE:${{ github.sha }} -f backend/Dockerfile backend/
-          podman build -t $REGISTRY/$BACKEND_IMAGE:latest -f backend/Dockerfile backend/
-
-      - name: Build Frontend Image
-        run: |
-          podman build -t $REGISTRY/$FRONTEND_IMAGE:${{ github.sha }} -f web/Dockerfile web/
-          podman build -t $REGISTRY/$FRONTEND_IMAGE:latest -f web/Dockerfile web/
-
-      # 推送到私有镜像仓库（如果有的话）
-      - name: Push Images
-        if: github.event_name == 'push'
-        run: |
-          echo "镜像构建完成，标签为: ${{ github.sha }}"
-          # podman push $REGISTRY/$BACKEND_IMAGE:${{ github.sha }}
-          # podman push $REGISTRY/$FRONTEND_IMAGE:${{ github.sha }}
-
-  # 部署到测试环境
-  deploy-staging:
-    runs-on: self-hosted
-    needs: build
-    if: github.ref == 'refs/heads/develop'
-    environment: staging
-    steps:
-      - name: Deploy to Staging
-        run: |
-          echo "部署到测试环境"
-          # 这里可以添加具体的部署脚本
-
-  # 部署到生产环境
-  deploy-production:
-    runs-on: self-hosted
-    needs: build
-    if: github.ref == 'refs/heads/main'
-    environment: production
-    steps:
-      - name: Deploy to Production
-        run: |
-          echo "部署到生产环境"
-          # 这里可以添加具体的部署脚本 
+          echo "🚀 开始智能端口管理部署..."
+          
+          # 设置环境变量
+          export ENVIRONMENT=${{ github.ref == 'refs/heads/main' && 'production' || 'staging' }}
+          
+          # 智能端口检测函数
+          find_available_port() {
+            local start_port=$1
+            local max_port=$((start_port + 100))
+            
+            for port in $(seq $start_port $max_port); do
+              if ! ss -tulpn | grep -q ":$port "; then
+                echo $port
+                return 0
+              fi
+            done
+            echo $start_port  # 默认返回起始端口
+          }
+          
+          # 端口配置策略
+          if [ "$ENVIRONMENT" = "production" ]; then
+            # 生产环境端口策略
+            PREFERRED_FRONTEND_PORT=${{ vars.FRONTEND_PORT_PRODUCTION || '8080' }}  # 默认8080而不是80
+            PREFERRED_BACKEND_PORT=${{ vars.BACKEND_PORT_PRODUCTION || '3000' }}
+          else
+            # 测试环境端口策略
+            PREFERRED_FRONTEND_PORT=${{ vars.FRONTEND_PORT_STAGING || '5173' }}
+            PREFERRED_BACKEND_PORT=${{ vars.BACKEND_PORT_STAGING || '3001' }}
+          fi
+          
+          # 智能端口分配
+          FRONTEND_PORT=$(find_available_port $PREFERRED_FRONTEND_PORT)
+          BACKEND_PORT=$(find_available_port $PREFERRED_BACKEND_PORT)
+          
+          echo "📊 端口分配结果："
+          echo "  环境: $ENVIRONMENT"
+          echo "  前端端口: $FRONTEND_PORT (首选: $PREFERRED_FRONTEND_PORT)"
+          echo "  后端端口: $BACKEND_PORT (首选: $PREFERRED_BACKEND_PORT)"
+          
+          # 检查是否与首选端口不同
+          if [ "$FRONTEND_PORT" != "$PREFERRED_FRONTEND_PORT" ]; then
+            echo "⚠️  前端端口 $PREFERRED_FRONTEND_PORT 被占用，自动分配到 $FRONTEND_PORT"
+          fi
+          
+          if [ "$BACKEND_PORT" != "$PREFERRED_BACKEND_PORT" ]; then
+            echo "⚠️  后端端口 $PREFERRED_BACKEND_PORT 被占用，自动分配到 $BACKEND_PORT"
+          fi
+          
+          echo "🏗️ 构建镜像..."
+          # 构建后端镜像
+          podman build -t fmod-backend:latest -f backend/Dockerfile backend/
+          
+          # 构建前端镜像
+          podman build -t fmod-frontend:latest -f web/Dockerfile web/
+          
+          echo "🔄 安全停止旧容器..."
+          # 优雅停止现有容器（而不是强制删除）
+          if podman ps -q --filter name=fmod-backend-$ENVIRONMENT | grep -q .; then
+            echo "停止现有后端容器..."
+            podman stop fmod-backend-$ENVIRONMENT --timeout 30 || true
+            podman rm fmod-backend-$ENVIRONMENT || true
+          fi
+          
+          if podman ps -q --filter name=fmod-frontend-$ENVIRONMENT | grep -q .; then
+            echo "停止现有前端容器..."
+            podman stop fmod-frontend-$ENVIRONMENT --timeout 30 || true
+            podman rm fmod-frontend-$ENVIRONMENT || true
+          fi
+          
+          echo "🚀 启动新容器..."
+          # 创建数据卷（如果不存在）
+          podman volume create fmod-data-$ENVIRONMENT 2>/dev/null || true
+          
+          # 启动后端容器
+          podman run -d \
+            --name fmod-backend-$ENVIRONMENT \
+            -p $BACKEND_PORT:3000 \
+            -v fmod-data-$ENVIRONMENT:/app/data \
+            -e RUST_LOG=info \
+            -e DATABASE_URL=sqlite:./data/prod.db \
+            -e ENABLE_PERSISTENCE=true \
+            -e CREATE_TEST_DATA=false \
+            --restart unless-stopped \
+            fmod-backend:latest
+          
+          # 启动前端容器
+          podman run -d \
+            --name fmod-frontend-$ENVIRONMENT \
+            -p $FRONTEND_PORT:80 \
+            --restart unless-stopped \
+            fmod-frontend:latest
+          
+          # 等待服务启动
+          echo "⏳ 等待服务启动..."
+          sleep 15
+          
+          echo "🔍 健康检查..."
+          # 后端健康检查
+          BACKEND_HEALTH="❌"
+          for i in {1..6}; do
+            if curl -sf "http://localhost:$BACKEND_PORT/health" >/dev/null 2>&1; then
+              BACKEND_HEALTH="✅"
+              break
+            fi
+            echo "后端健康检查 $i/6 失败，等待5秒后重试..."
+            sleep 5
+          done
+          
+          # 前端健康检查  
+          FRONTEND_HEALTH="❌"
+          for i in {1..6}; do
+            if curl -sf "http://localhost:$FRONTEND_PORT/" >/dev/null 2>&1; then
+              FRONTEND_HEALTH="✅"
+              break
+            fi
+            echo "前端健康检查 $i/6 失败，等待5秒后重试..."
+            sleep 5
+          done
+          
+          echo ""
+          echo "🎯 部署完成报告："
+          echo "┌─────────────────────────────────────────┐"
+          echo "│              FMOD v7 部署状态           │"
+          echo "├─────────────────────────────────────────┤"
+          echo "│ 环境: $ENVIRONMENT"
+          echo "│ 前端: $FRONTEND_HEALTH http://localhost:$FRONTEND_PORT"
+          echo "│ 后端: $BACKEND_HEALTH http://localhost:$BACKEND_PORT"
+          echo "│ API:  http://localhost:$BACKEND_PORT/health"
+          echo "└─────────────────────────────────────────┘"
+          
+          # 保存端口信息到文件供后续使用
+          echo "FRONTEND_PORT=$FRONTEND_PORT" > deployment-info.txt
+          echo "BACKEND_PORT=$BACKEND_PORT" >> deployment-info.txt
+          echo "ENVIRONMENT=$ENVIRONMENT" >> deployment-info.txt
+          
+          # 如果任一服务健康检查失败，标记部署失败
+          if [ "$BACKEND_HEALTH" = "❌" ] || [ "$FRONTEND_HEALTH" = "❌" ]; then
+            echo "❌ 部署失败：健康检查未通过"
+            echo "查看日志："
+            podman logs fmod-backend-$ENVIRONMENT --tail 20
+            podman logs fmod-frontend-$ENVIRONMENT --tail 20
+            exit 1
+          fi
+          
+          echo "✅ 部署成功完成！" 
