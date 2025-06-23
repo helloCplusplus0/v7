@@ -55,6 +55,11 @@ impl SqliteDatabase {
         Self::new(":memory:")
     }
     
+    /// 获取数据库文件路径
+    pub fn file_path(&self) -> &str {
+        &self.file_path
+    }
+    
     /// 将rusqlite的Row转换为DbRow
     fn row_to_dbrow(row: &Row) -> rusqlite::Result<DbRow> {
         let mut map = HashMap::new();

@@ -29,7 +29,7 @@ use fmod_slice::slices::mvp_crud::{
     interfaces::ItemRepository,
 };
 use fmod_slice::infra::cache::MemoryCache;
-use fmod_slice::infra::db::{DatabaseFactory, migrations::setup_migrations, SqliteDatabase};
+use fmod_slice::infra::db::{migrations::setup_migrations, SqliteDatabase};
 
 #[tokio::main]
 async fn main() -> anyhow::Result<()> {
@@ -116,12 +116,14 @@ async fn setup_services() {
     
     let db = if database_url.starts_with("sqlite:") {
         if database_url == "sqlite::memory:" {
-            tracing::info!("🗄️ 创建SQLite内存数据库");
-            SqliteDatabase::memory().expect("无法创建SQLite内存数据库")
+            let db = SqliteDatabase::memory().expect("无法创建SQLite内存数据库");
+            tracing::info!("🗄️ 创建SQLite内存数据库: {}", db.file_path());
+            db
         } else {
             let file_path = database_url.strip_prefix("sqlite:").unwrap_or(&database_url);
-            tracing::info!("🗄️ 创建SQLite文件数据库: {}", file_path);
-            SqliteDatabase::new(file_path).expect("无法创建SQLite文件数据库")
+            let db = SqliteDatabase::new(file_path).expect("无法创建SQLite文件数据库");
+            tracing::info!("🗄️ 创建SQLite文件数据库: {}", db.file_path());
+            db
         }
     } else {
         panic!("目前仅支持SQLite数据库");
