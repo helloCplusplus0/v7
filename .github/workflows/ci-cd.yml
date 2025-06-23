@@ -1,5 +1,5 @@
 # 🚀 V7 Project CI/CD Pipeline
-name: 🚀 V7 Project CI/CD Pipeline
+name: CI/CD Pipeline
 
 on:
   push:
