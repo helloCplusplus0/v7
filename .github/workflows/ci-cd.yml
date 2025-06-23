@@ -31,39 +31,51 @@ jobs:
   test-backend:
     name: 🦀 Backend Tests
     runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: backend
     steps:
       - name: 📥 Checkout code
         uses: actions/checkout@v4
 
       - name: 🦀 Setup Rust
-        uses: actions-rs/toolchain@v1
+        uses: actions-rust-lang/setup-rust-toolchain@v1
         with:
           toolchain: stable
-          profile: minimal
-          override: true
           components: rustfmt, clippy
 
       - name: 📦 Cache Rust dependencies
-        uses: actions/cache@v3
+        uses: actions/cache@v4
         with:
           path: |
             backend/target/
             ~/.cargo/registry/
             ~/.cargo/git/
-          key: ${{ runner.os }}-cargo-${{ hashFiles('**/Cargo.lock') }}
+          key: ${{ runner.os }}-cargo-backend-${{ hashFiles('backend/Cargo.lock') }}
           restore-keys: |
-            ${{ runner.os }}-cargo-
+            ${{ runner.os }}-cargo-backend-
 
-      - name: 🔍 Run backend tests
-        working-directory: backend
-        run: |
-          cargo fmt --all -- --check
-          cargo clippy -- -D warnings
-          cargo test --verbose
+      - name: 🔍 Check Rust formatting
+        run: cargo fmt --all -- --check
+
+      - name: 🔍 Run Rust linting
+        run: cargo clippy --all-targets --all-features -- -D warnings
+
+      - name: 🧪 Run backend unit tests
+        run: cargo test --lib --verbose
+
+      - name: 🧪 Run backend integration tests
+        run: cargo test --test integration --verbose
+
+      - name: 📦 Test backend build
+        run: cargo build --release
 
   test-frontend:
     name: 🌐 Frontend Tests
     runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: web
     steps:
       - name: 📥 Checkout code
         uses: actions/checkout@v4
@@ -71,28 +83,40 @@ jobs:
       - name: 📦 Setup Node.js
         uses: actions/setup-node@v4
         with:
-          node-version: '18'
+          node-version: '20'
           cache: 'npm'
           cache-dependency-path: web/package-lock.json
 
       - name: 📦 Install dependencies
-        working-directory: web
-        run: npm ci
+        run: npm ci --prefer-offline --no-audit
+
+      - name: 🔍 Run ESLint
+        run: npm run lint
+
+      - name: 🔍 Type checking
+        run: npm run type-check
 
       - name: 🧪 Run frontend tests
-        working-directory: web
-        run: |
-          npm run test:ci
-          npm run build
+        run: npm run test:ci
+
+      - name: 📦 Build frontend
+        run: npm run build
 
       - name: 📊 Upload test coverage
-        uses: actions/upload-artifact@v3
+        uses: actions/upload-artifact@v4
         if: always()
         with:
-          name: coverage-report
-          path: |
-            web/coverage/
+          name: frontend-coverage-report
+          path: web/coverage/
           retention-days: 7
+
+      - name: 📊 Upload build artifacts
+        uses: actions/upload-artifact@v4
+        if: success()
+        with:
+          name: frontend-build
+          path: web/dist/
+          retention-days: 1
 
   # 🐳 镜像构建阶段
   build-images:
@@ -103,6 +127,8 @@ jobs:
     outputs:
       backend-digest: ${{ steps.backend-build.outputs.digest }}
       web-digest: ${{ steps.web-build.outputs.digest }}
+      backend-tags: ${{ steps.backend-meta.outputs.tags }}
+      web-tags: ${{ steps.web-meta.outputs.tags }}
     steps:
       - name: 📥 Checkout code
         uses: actions/checkout@v4
@@ -138,6 +164,7 @@ jobs:
           labels: ${{ steps.backend-meta.outputs.labels }}
           cache-from: type=gha
           cache-to: type=gha,mode=max
+          platforms: linux/amd64
 
       - name: 📝 Extract metadata for web
         id: web-meta
@@ -160,6 +187,7 @@ jobs:
           labels: ${{ steps.web-meta.outputs.labels }}
           cache-from: type=gha
           cache-to: type=gha,mode=max
+          platforms: linux/amd64
 
   # 🚀 部署阶段
   deploy:
@@ -184,7 +212,7 @@ jobs:
             export IMAGE_WEB="${{ env.IMAGE_WEB }}:${{ github.sha }}"
             
             # 进入项目目录
-            cd v7-project
+            cd v7-project || { echo "❌ 项目目录不存在"; exit 1; }
             
             # 备份当前部署
             if podman-compose ps | grep -q "v7-"; then
@@ -195,8 +223,8 @@ jobs:
             
             # 拉取最新镜像
             echo "📦 拉取最新镜像..."
-            podman pull ${{ env.IMAGE_BACKEND }}:${{ github.sha }}
-            podman pull ${{ env.IMAGE_WEB }}:${{ github.sha }}
+            podman pull ${{ env.IMAGE_BACKEND }}:${{ github.sha }} || { echo "❌ 拉取后端镜像失败"; exit 1; }
+            podman pull ${{ env.IMAGE_WEB }}:${{ github.sha }} || { echo "❌ 拉取前端镜像失败"; exit 1; }
             
             # 更新 podman-compose.yml 中的镜像标签
             sed -i "s|${{ env.IMAGE_BACKEND }}:.*|${{ env.IMAGE_BACKEND }}:${{ github.sha }}|g" podman-compose.yml
@@ -205,43 +233,51 @@ jobs:
             # 停止旧服务并启动新服务
             echo "🔄 重新部署服务..."
             podman-compose down || true
-            podman-compose up -d
+            podman-compose up -d || { echo "❌ 启动服务失败"; exit 1; }
             
             # 等待服务启动
             echo "⏳ 等待服务启动..."
-            sleep 30
+            sleep 45
             
             # 健康检查
             echo "🏥 执行健康检查..."
-            if curl -f http://localhost:8080/health > /dev/null 2>&1; then
-              echo "✅ 后端服务健康检查通过"
-            else
-              echo "❌ 后端服务健康检查失败"
-              exit 1
-            fi
+            for i in {1..5}; do
+              if curl -f http://localhost:3000/health > /dev/null 2>&1; then
+                echo "✅ 后端服务健康检查通过"
+                break
+              else
+                echo "⏳ 后端服务启动中... (尝试 $i/5)"
+                sleep 10
+              fi
+              if [ $i -eq 5 ]; then
+                echo "❌ 后端服务健康检查失败"
+                podman-compose logs backend
+                exit 1
+              fi
+            done
             
-            if curl -f http://localhost:3000 > /dev/null 2>&1; then
-              echo "✅ 前端服务健康检查通过"
-            else
-              echo "❌ 前端服务健康检查失败"
-              exit 1
-            fi
+            for i in {1..5}; do
+              if curl -f http://localhost:8080/health > /dev/null 2>&1; then
+                echo "✅ 前端服务健康检查通过"
+                break
+              else
+                echo "⏳ 前端服务启动中... (尝试 $i/5)"
+                sleep 10
+              fi
+              if [ $i -eq 5 ]; then
+                echo "❌ 前端服务健康检查失败"
+                podman-compose logs web
+                exit 1
+              fi
+            done
             
             # 清理旧镜像
             echo "🧹 清理旧镜像..."
-            podman image prune -f --filter "until=72h"
+            podman image prune -f --filter "until=72h" || true
             
             echo "🎉 部署完成！"
-            echo "后端服务: http://43.134.119.134:8080"
-            echo "前端服务: http://43.134.119.134:3000"
-
-      - name: 🧹 Cleanup old images
-        run: |
-          ssh -o StrictHostKeyChecking=no ${{ secrets.SERVER_USER }}@${{ secrets.SERVER_HOST }} << 'EOF'
-            # 清理未使用的镜像，保留最近3个版本
-            podman image prune -f
-            podman images | grep '${{ env.IMAGE_BACKEND }}\|${{ env.IMAGE_WEB }}' | tail -n +4 | awk '{print $3}' | xargs -r podman rmi
-          EOF
+            echo "后端服务: http://43.134.119.134:3000"
+            echo "前端服务: http://43.134.119.134:8080"
 
   # 📊 部署后验证
   post-deploy-tests:
@@ -253,25 +289,41 @@ jobs:
       - name: 🔍 API Health Check
         run: |
           # 等待服务完全启动
-          sleep 60
+          sleep 30
           
           # 检查后端API
-          response=$(curl -s -o /dev/null -w "%{http_code}" http://${{ secrets.SERVER_HOST }}:3000/health)
-          if [ $response -eq 200 ]; then
-            echo "✅ Backend API is responding"
-          else
-            echo "❌ Backend API health check failed (HTTP $response)"
-            exit 1
-          fi
+          echo "🔍 检查后端API健康状态..."
+          for i in {1..10}; do
+            response=$(curl -s -o /dev/null -w "%{http_code}" http://${{ secrets.SERVER_HOST }}:3000/health)
+            if [ "$response" = "200" ]; then
+              echo "✅ Backend API is responding (HTTP $response)"
+              break
+            else
+              echo "⏳ 等待后端API响应... (尝试 $i/10, HTTP $response)"
+              sleep 15
+            fi
+            if [ $i -eq 10 ]; then
+              echo "❌ Backend API health check failed after 10 attempts"
+              exit 1
+            fi
+          done
           
           # 检查前端
-          response=$(curl -s -o /dev/null -w "%{http_code}" http://${{ secrets.SERVER_HOST }}:8080/health)
-          if [ $response -eq 200 ]; then
-            echo "✅ Frontend is responding"
-          else
-            echo "❌ Frontend health check failed (HTTP $response)"
-            exit 1
-          fi
+          echo "🔍 检查前端健康状态..."
+          for i in {1..10}; do
+            response=$(curl -s -o /dev/null -w "%{http_code}" http://${{ secrets.SERVER_HOST }}:8080/health)
+            if [ "$response" = "200" ]; then
+              echo "✅ Frontend is responding (HTTP $response)"
+              break
+            else
+              echo "⏳ 等待前端响应... (尝试 $i/10, HTTP $response)"
+              sleep 15
+            fi
+            if [ $i -eq 10 ]; then
+              echo "❌ Frontend health check failed after 10 attempts"
+              exit 1
+            fi
+          done
 
       - name: 🧪 Smoke Tests
         run: |
@@ -279,12 +331,23 @@ jobs:
           echo "🧪 Testing MVP CRUD API..."
           
           # 测试获取项目列表
-          response=$(curl -s "http://${{ secrets.SERVER_HOST }}:3000/api/items")
-          echo "Items API response: $response"
+          echo "🔍 测试项目列表API..."
+          response=$(curl -s -w "\n%{http_code}" "http://${{ secrets.SERVER_HOST }}:3000/api/items")
+          status_code=$(echo "$response" | tail -n1)
+          response_body=$(echo "$response" | head -n -1)
           
-          # 测试健康检查端点
-          curl -f "http://${{ secrets.SERVER_HOST }}:3000/health" || exit 1
-          curl -f "http://${{ secrets.SERVER_HOST }}:8080/health" || exit 1
+          if [ "$status_code" = "200" ]; then
+            echo "✅ Items API responding correctly"
+            echo "Response: $response_body"
+          else
+            echo "❌ Items API failed (HTTP $status_code)"
+            echo "Response: $response_body"
+            exit 1
+          fi
+          
+          # 测试API info端点
+          echo "🔍 测试API info端点..."
+          curl -f "http://${{ secrets.SERVER_HOST }}:3000/api/info" || { echo "❌ API info endpoint failed"; exit 1; }
           
           echo "✅ All smoke tests passed"
 
@@ -295,13 +358,57 @@ jobs:
     needs: [deploy, post-deploy-tests]
     if: always()
     steps:
+      - name: 📧 Set deployment status
+        id: status
+        run: |
+          if [ "${{ needs.deploy.result }}" = "success" ] && [ "${{ needs.post-deploy-tests.result }}" = "success" ]; then
+            echo "DEPLOYMENT_STATUS=✅ 部署成功" >> $GITHUB_OUTPUT
+            echo "DEPLOYMENT_COLOR=good" >> $GITHUB_OUTPUT
+          else
+            echo "DEPLOYMENT_STATUS=❌ 部署失败" >> $GITHUB_OUTPUT
+            echo "DEPLOYMENT_COLOR=danger" >> $GITHUB_OUTPUT
+          fi
+          echo "COMMIT_SHA=${{ github.sha }}" >> $GITHUB_OUTPUT
+          echo "COMMIT_MESSAGE<<EOF" >> $GITHUB_OUTPUT
+          echo "${{ github.event.head_commit.message }}" >> $GITHUB_OUTPUT
+          echo "EOF" >> $GITHUB_OUTPUT
+
       - name: 📧 Notify deployment result
         uses: 8398a7/action-slack@v3
         with:
-          status: ${{ job.status }}
-          channel: '#deployments'
-          webhook_url: ${{ secrets.SLACK_WEBHOOK }}
-          fields: repo,message,commit,author,action,eventName,ref,workflow
+          status: custom
+          custom_payload: |
+            {
+              text: "${{ steps.status.outputs.DEPLOYMENT_STATUS }}",
+              attachments: [{
+                color: "${{ steps.status.outputs.DEPLOYMENT_COLOR }}",
+                fields: [{
+                  title: "项目",
+                  value: "V7 Project",
+                  short: true
+                }, {
+                  title: "环境",
+                  value: "${{ github.event.inputs.deploy_env || 'staging' }}",
+                  short: true
+                }, {
+                  title: "提交",
+                  value: "`${{ steps.status.outputs.COMMIT_SHA }}`",
+                  short: true
+                }, {
+                  title: "分支",
+                  value: "${{ github.ref_name }}",
+                  short: true
+                }, {
+                  title: "提交信息",
+                  value: "${{ steps.status.outputs.COMMIT_MESSAGE }}",
+                  short: false
+                }, {
+                  title: "服务地址",
+                  value: "前端: http://43.134.119.134:8080\n后端: http://43.134.119.134:3000",
+                  short: false
+                }]
+              }]
+            }
         env:
           SLACK_WEBHOOK_URL: ${{ secrets.SLACK_WEBHOOK }}
         if: env.SLACK_WEBHOOK_URL != '' 

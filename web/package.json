@@ -28,6 +28,7 @@
     "slice:new": "node scripts/create-slice.js",
     "clean": "rm -rf dist node_modules/.vite",
     "typecheck": "tsc --noEmit",
+    "type-check": "tsc --noEmit",
     "debug": "node debug-server.js"
   },
   "dependencies": {
