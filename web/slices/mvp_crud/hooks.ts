@@ -143,8 +143,11 @@ export function useCrud() {
 
   // 更新项目
   const updateItem = async (id: string, data: UpdateItemRequest) => {
+    console.log('🎯 hooks.updateItem called with id:', id, 'data:', data);
     return executeAsync(async () => {
+      console.log('📡 Calling crudApi.updateItem');
       const response = await crudApi.updateItem(id, data);
+      console.log('📡 crudApi.updateItem response:', response);
       
       // 更新本地状态
       setCrudState('items', produce((items) => {

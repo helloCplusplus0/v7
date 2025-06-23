@@ -50,7 +50,11 @@ class CrudApiClient extends BaseApiClient {
    * 更新项目
    */
   async updateItem(id: string, data: UpdateItemRequest): Promise<UpdateItemResponse> {
-    return this.put<UpdateItemResponse>(`${this.itemsPath}/${id}`, data);
+    const url = `${this.itemsPath}/${id}`;
+    console.log('🌐 API updateItem called:', { url, id, data });
+    const response = await this.put<UpdateItemResponse>(url, data);
+    console.log('🌐 API updateItem response:', response);
+    return response;
   }
 
   /**
