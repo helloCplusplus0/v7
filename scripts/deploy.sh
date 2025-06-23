@@ -1,448 +1,432 @@
 #!/bin/bash
+# 🚀 V7 Project Deployment Script
+# 适用于轻量级云服务器的完整部署解决方案
 
-# FMOD v7 智能端口管理 Podman 部署脚本
-set -e
+set -euo pipefail
 
-# 配置变量
-PROJECT_NAME="fmod-v7"
-BACKEND_IMAGE="fmod-backend"
-FRONTEND_IMAGE="fmod-frontend"
-VERSION=${1:-latest}
+# 🎨 颜色配置
+readonly RED='\033[0;31m'
+readonly GREEN='\033[0;32m'
+readonly YELLOW='\033[1;33m'
+readonly BLUE='\033[0;34m'
+readonly PURPLE='\033[0;35m'
+readonly CYAN='\033[0;36m'
+readonly NC='\033[0m' # No Color
 
-# 颜色输出
-RED='\033[0;31m'
-GREEN='\033[0;32m'
-YELLOW='\033[1;33m'
-BLUE='\033[0;34m'
-NC='\033[0m' # No Color
+# 📝 日志函数
+log() { echo -e "${GREEN}[$(date +'%Y-%m-%d %H:%M:%S')] ✅ $1${NC}"; }
+warn() { echo -e "${YELLOW}[$(date +'%Y-%m-%d %H:%M:%S')] ⚠️  $1${NC}"; }
+error() { echo -e "${RED}[$(date +'%Y-%m-%d %H:%M:%S')] ❌ $1${NC}"; }
+info() { echo -e "${BLUE}[$(date +'%Y-%m-%d %H:%M:%S')] ℹ️  $1${NC}"; }
+step() { echo -e "${PURPLE}[$(date +'%Y-%m-%d %H:%M:%S')] 🔄 $1${NC}"; }
 
-log_info() {
-    echo -e "${BLUE}[INFO]${NC} $1"
-}
+# 📊 配置变量
+readonly DEPLOY_PATH="${DEPLOY_PATH:-/home/deploy/containers/v7-project}"
+readonly BACKUP_DIR="${DEPLOY_PATH}/backups"
+readonly LOG_DIR="${DEPLOY_PATH}/logs"
+readonly DATA_DIR="${DEPLOY_PATH}/data"
+readonly BACKEND_IMAGE="${BACKEND_IMAGE:-ghcr.io/hellocplusplus0/v7/backend:latest}"
+readonly WEB_IMAGE="${WEB_IMAGE:-ghcr.io/hellocplusplus0/v7/web:latest}"
+readonly MAX_DEPLOY_TIME=600  # 10分钟超时
+readonly HEALTH_CHECK_RETRIES=30
+readonly HEALTH_CHECK_INTERVAL=10
 
-log_success() {
-    echo -e "${GREEN}[SUCCESS]${NC} $1"
-}
-
-log_warning() {
-    echo -e "${YELLOW}[WARNING]${NC} $1"
-}
-
-log_error() {
-    echo -e "${RED}[ERROR]${NC} $1"
-}
-
-# 智能端口检测函数
-find_available_port() {
-    local start_port=$1
-    local max_attempts=${2:-50}
-    local max_port=$((start_port + max_attempts))
+# 🔍 环境检查
+check_prerequisites() {
+    step "检查部署环境..."
     
-    for port in $(seq $start_port $max_port); do
-        # 检查端口是否被占用
-        if ! ss -tulpn 2>/dev/null | grep -q ":$port " && \
-           ! netstat -tulpn 2>/dev/null | grep -q ":$port "; then
-            echo $port
-            return 0
+    # 检查必要工具
+    local tools=("podman" "podman-compose" "curl" "jq")
+    for tool in "${tools[@]}"; do
+        if ! command -v "$tool" &> /dev/null; then
+            error "缺少必要工具: $tool"
+            exit 1
         fi
     done
     
-    # 如果找不到可用端口，返回原始端口
-    log_warning "在 $start_port-$max_port 范围内未找到可用端口，返回原始端口 $start_port"
-    echo $start_port
+    # 检查用户权限
+    if [[ $EUID -eq 0 ]]; then
+        warn "不建议以root用户运行部署脚本"
+    fi
+    
+    # 检查磁盘空间
+    local available_space=$(df "$DEPLOY_PATH" 2>/dev/null | awk 'NR==2 {print $4}' || echo "0")
+    if [[ $available_space -lt 1048576 ]]; then  # 1GB
+        warn "可用磁盘空间不足1GB，当前: $(($available_space/1024))MB"
+    fi
+    
+    # 检查内存
+    local available_memory=$(free | awk 'NR==2{printf "%.0f", $7/1024}')
+    if [[ $available_memory -lt 512 ]]; then
+        warn "可用内存不足512MB，当前: ${available_memory}MB"
+    fi
+    
+    log "环境检查通过"
 }
 
-# 检查端口是否被占用
-is_port_in_use() {
-    local port=$1
-    ss -tulpn 2>/dev/null | grep -q ":$port " || netstat -tulpn 2>/dev/null | grep -q ":$port "
+# 📁 准备部署目录
+prepare_directories() {
+    step "准备部署目录结构..."
+    
+    mkdir -p "$DEPLOY_PATH"/{data,logs/{backend,web},backups,scripts}
+    chmod 755 "$DEPLOY_PATH"
+    
+    # 设置日志轮转
+    if [[ ! -f "$LOG_DIR/logrotate.conf" ]]; then
+        cat > "$LOG_DIR/logrotate.conf" << 'EOF'
+/var/log/v7/*.log {
+    daily
+    missingok
+    rotate 7
+    compress
+    delaycompress
+    notifempty
+    create 644 deploy deploy
+}
+EOF
+    fi
+    
+    log "目录结构准备完成"
 }
 
-# 获取端口配置
-get_port_config() {
-    local env=${ENVIRONMENT:-production}
+# 💾 备份现有数据
+backup_data() {
+    step "备份现有数据..."
     
-    if [ "$env" = "staging" ]; then
-        # 测试环境端口配置
-        PREFERRED_FRONTEND_PORT=${FRONTEND_PORT_STAGING:-5173}
-        PREFERRED_BACKEND_PORT=${BACKEND_PORT_STAGING:-3001}
-    else
-        # 生产环境端口配置（默认使用8080而非80避免权限问题）
-        PREFERRED_FRONTEND_PORT=${FRONTEND_PORT_PRODUCTION:-8080}
-        PREFERRED_BACKEND_PORT=${BACKEND_PORT_PRODUCTION:-3000}
-    fi
+    local backup_timestamp=$(date +"%Y%m%d_%H%M%S")
+    local backup_name="backup_${backup_timestamp}"
+    local backup_path="${BACKUP_DIR}/${backup_name}"
     
-    # 智能分配端口
-    FRONTEND_PORT=$(find_available_port $PREFERRED_FRONTEND_PORT)
-    BACKEND_PORT=$(find_available_port $PREFERRED_BACKEND_PORT)
-    
-    # 输出端口分配信息
-    log_info "端口配置："
-    log_info "  环境: $env"
-    log_info "  前端端口: $FRONTEND_PORT (首选: $PREFERRED_FRONTEND_PORT)"
-    log_info "  后端端口: $BACKEND_PORT (首选: $PREFERRED_BACKEND_PORT)"
-    
-    # 警告端口变更
-    if [ "$FRONTEND_PORT" != "$PREFERRED_FRONTEND_PORT" ]; then
-        log_warning "前端端口 $PREFERRED_FRONTEND_PORT 被占用，自动分配到 $FRONTEND_PORT"
-    fi
-    
-    if [ "$BACKEND_PORT" != "$PREFERRED_BACKEND_PORT" ]; then
-        log_warning "后端端口 $PREFERRED_BACKEND_PORT 被占用，自动分配到 $BACKEND_PORT"
-    fi
-    
-    # 保存端口信息到文件
-    echo "FRONTEND_PORT=$FRONTEND_PORT" > .port-config
-    echo "BACKEND_PORT=$BACKEND_PORT" >> .port-config
-    echo "ENVIRONMENT=$env" >> .port-config
-    echo "TIMESTAMP=$(date)" >> .port-config
-}
-
-# 检查 Podman 是否安装
-check_podman() {
-    if ! command -v podman &> /dev/null; then
-        log_error "Podman 未安装，请先安装 Podman"
-        echo "Ubuntu/Debian: sudo apt install -y podman"
-        echo "CentOS/RHEL: sudo dnf install -y podman"
-        exit 1
-    fi
-    log_info "Podman 版本: $(podman --version)"
-}
-
-# 构建镜像
-build_images() {
-    log_info "构建应用镜像..."
-    
-    # 构建后端镜像
-    log_info "构建后端镜像..."
-    if ! podman build -t $BACKEND_IMAGE:$VERSION -f backend/Dockerfile backend/; then
-        log_error "后端镜像构建失败"
-        exit 1
-    fi
-    
-    # 构建前端镜像
-    log_info "构建前端镜像..."
-    if ! podman build -t $FRONTEND_IMAGE:$VERSION -f web/Dockerfile web/; then
-        log_error "前端镜像构建失败"
-        exit 1
-    fi
-    
-    log_success "镜像构建完成"
-}
-
-# 停止服务
-stop_services() {
-    log_info "安全停止现有服务..."
-    local env=${ENVIRONMENT:-production}
-    
-    # 优雅停止后端容器
-    if podman ps -q --filter name=fmod-backend-$env | grep -q .; then
-        log_info "停止现有后端容器..."
-        podman stop fmod-backend-$env --timeout 30 || true
-        podman rm fmod-backend-$env || true
-        log_success "后端容器已停止"
-    fi
-    
-    # 优雅停止前端容器
-    if podman ps -q --filter name=fmod-frontend-$env | grep -q .; then
-        log_info "停止现有前端容器..."
-        podman stop fmod-frontend-$env --timeout 30 || true
-        podman rm fmod-frontend-$env || true
-        log_success "前端容器已停止"
-    fi
-}
-
-# 启动服务
-start_services() {
-    log_info "启动服务..."
-    local env=${ENVIRONMENT:-production}
-    
-    log_info "启动环境: $env"
-    log_info "前端端口: $FRONTEND_PORT, 后端端口: $BACKEND_PORT"
-    
-    # 创建数据卷（如果不存在）
-    podman volume create fmod-data-$env 2>/dev/null || true
-    
-    # 启动后端容器
-    log_info "启动后端容器..."
-    podman run -d \
-        --name fmod-backend-$env \
-        -p $BACKEND_PORT:3000 \
-        -v fmod-data-$env:/app/data \
-        -e RUST_LOG=info \
-        -e DATABASE_URL=sqlite:./data/prod.db \
-        -e ENABLE_PERSISTENCE=true \
-        -e CREATE_TEST_DATA=false \
-        --restart unless-stopped \
-        $BACKEND_IMAGE:$VERSION
-    
-    # 启动前端容器
-    log_info "启动前端容器..."
-    podman run -d \
-        --name fmod-frontend-$env \
-        -p $FRONTEND_PORT:80 \
-        --restart unless-stopped \
-        $FRONTEND_IMAGE:$VERSION
-    
-    # 等待服务启动
-    log_info "等待服务启动..."
-    sleep 10
-    
-    # 检查服务状态
-    check_services $env
-}
-
-# 检查服务状态
-check_services() {
-    local env=${1:-production}
-    
-    log_info "检查服务状态..."
-    
-    # 检查容器状态
-    if podman ps --filter name=fmod-backend-$env --format "{{.Status}}" | grep -q "Up"; then
-        log_success "后端容器运行正常"
-    else
-        log_error "后端容器运行异常"
-        podman logs fmod-backend-$env --tail 20
-        return 1
-    fi
-    
-    if podman ps --filter name=fmod-frontend-$env --format "{{.Status}}" | grep -q "Up"; then
-        log_success "前端容器运行正常"
-    else
-        log_error "前端容器运行异常"
-        podman logs fmod-frontend-$env --tail 20
-        return 1
-    fi
-    
-    # 智能健康检查
-    log_info "进行健康检查..."
-    
-    # 后端健康检查（多次重试）
-    local backend_health="❌"
-    for i in {1..6}; do
-        if curl -sf "http://localhost:$BACKEND_PORT/health" >/dev/null 2>&1; then
-            backend_health="✅"
-            break
-        fi
-        log_info "后端健康检查 $i/6 失败，等待5秒后重试..."
-        sleep 5
-    done
-    
-    # 前端健康检查（多次重试）
-    local frontend_health="❌"
-    for i in {1..6}; do
-        if curl -sf "http://localhost:$FRONTEND_PORT/" >/dev/null 2>&1; then
-            frontend_health="✅"
-            break
-        fi
-        log_info "前端健康检查 $i/6 失败，等待5秒后重试..."
-        sleep 5
-    done
-    
-    # 输出详细的部署报告
-    echo ""
-    echo "🎯 部署完成报告："
-    echo "┌─────────────────────────────────────────┐"
-    echo "│              FMOD v7 部署状态           │"
-    echo "├─────────────────────────────────────────┤"
-    echo "│ 环境: $env                             │"
-    echo "│ 前端: $frontend_health http://localhost:$FRONTEND_PORT              │"
-    echo "│ 后端: $backend_health http://localhost:$BACKEND_PORT                │"
-    echo "│ API:  http://localhost:$BACKEND_PORT/health      │"
-    echo "└─────────────────────────────────────────┘"
-    
-    if [ "$backend_health" = "❌" ] || [ "$frontend_health" = "❌" ]; then
-        log_error "健康检查失败，部署可能存在问题"
-        return 1
-    fi
-    
-    log_success "所有服务健康检查通过"
-}
-
-# 显示端口信息
-show_port_info() {
-    local env=${ENVIRONMENT:-production}
-    
-    if [ -f .port-config ]; then
-        echo "📊 当前端口配置："
-        cat .port-config
-    fi
-    
-    echo ""
-    echo "🌐 服务访问地址："
-    echo "  前端应用: http://localhost:${FRONTEND_PORT:-未知}"
-    echo "  后端API:  http://localhost:${BACKEND_PORT:-未知}"
-    echo "  健康检查: http://localhost:${BACKEND_PORT:-未知}/health"
-}
-
-# 显示日志
-show_logs() {
-    local env=${ENVIRONMENT:-production}
-    
-    echo "=== 后端日志 ==="
-    podman logs --tail 50 fmod-backend-$env 2>/dev/null || echo "后端容器未运行"
-    
-    echo ""
-    echo "=== 前端日志 ==="
-    podman logs --tail 50 fmod-frontend-$env 2>/dev/null || echo "前端容器未运行"
-}
-
-# 备份数据库
-backup_database() {
-    log_info "备份数据库..."
-    
-    local env=${ENVIRONMENT:-production}
-    local backup_dir="backups"
-    local timestamp=$(date +%Y%m%d-%H%M%S)
-    
-    # 创建备份目录
-    mkdir -p $backup_dir
+    mkdir -p "$backup_path"
     
     # 备份数据库
-    if podman volume exists fmod-data-$env; then
-        podman run --rm \
-            -v fmod-data-$env:/data:ro \
-            -v $(pwd)/$backup_dir:/backup \
-            alpine:latest \
-            sh -c "if [ -f /data/prod.db ]; then cp /data/prod.db /backup/fmod-$env-$timestamp.db; echo 'Backup completed'; else echo 'No database found'; fi"
-        
-        log_success "数据库备份完成: $backup_dir/fmod-$env-$timestamp.db"
-    else
-        log_warning "数据卷不存在，跳过备份"
+    if [[ -f "$DATA_DIR/prod.db" ]]; then
+        cp "$DATA_DIR/prod.db" "$backup_path/prod.db"
+        log "数据库备份完成: $backup_path/prod.db"
     fi
+    
+    # 备份配置文件
+    if [[ -f "$DEPLOY_PATH/podman-compose.yml" ]]; then
+        cp "$DEPLOY_PATH/podman-compose.yml" "$backup_path/"
+        cp "$DEPLOY_PATH/.env" "$backup_path/" 2>/dev/null || true
+    fi
+    
+    # 备份日志
+    if [[ -d "$LOG_DIR" ]]; then
+        tar -czf "$backup_path/logs.tar.gz" -C "$LOG_DIR" . 2>/dev/null || true
+    fi
+    
+    # 清理旧备份（保留最近7天）
+    find "$BACKUP_DIR" -name "backup_*" -type d -mtime +7 -exec rm -rf {} + 2>/dev/null || true
+    
+    log "备份完成: $backup_name"
+    echo "$backup_name" > "$BACKUP_DIR/latest_backup"
 }
 
-# 清理资源
-cleanup() {
-    log_info "清理未使用的资源..."
+# 🐳 拉取和验证镜像
+pull_images() {
+    step "拉取最新镜像..."
     
-    # 清理悬空镜像
-    podman image prune -f >/dev/null 2>&1 || true
+    # 拉取后端镜像
+    if ! podman pull "$BACKEND_IMAGE"; then
+        error "拉取后端镜像失败: $BACKEND_IMAGE"
+        exit 1
+    fi
     
-    # 清理停止的容器
-    podman container prune -f >/dev/null 2>&1 || true
+    # 拉取前端镜像
+    if ! podman pull "$WEB_IMAGE"; then
+        error "拉取前端镜像失败: $WEB_IMAGE"
+        exit 1
+    fi
     
-    log_success "资源清理完成"
+    # 验证镜像
+    local backend_digest=$(podman inspect "$BACKEND_IMAGE" --format '{{.Digest}}' 2>/dev/null || echo "unknown")
+    local web_digest=$(podman inspect "$WEB_IMAGE" --format '{{.Digest}}' 2>/dev/null || echo "unknown")
+    
+    info "后端镜像摘要: $backend_digest"
+    info "前端镜像摘要: $web_digest"
+    
+    log "镜像拉取完成"
 }
 
-# 显示状态
-show_status() {
-    echo "🐳 FMOD v7 容器状态："
-    echo ""
+# 🛑 停止现有服务
+stop_services() {
+    step "停止现有服务..."
     
-    # 显示容器状态
-    podman ps -a --filter name=fmod --format "table {{.Names}}\t{{.Status}}\t{{.Ports}}"
+    cd "$DEPLOY_PATH"
     
-    echo ""
-    echo "💾 数据卷状态："
-    podman volume ls --filter name=fmod --format "table {{.Name}}\t{{.Driver}}"
+    if [[ -f "podman-compose.yml" ]]; then
+        # 优雅停止服务
+        timeout 120 podman-compose down --remove-orphans || {
+            warn "优雅停止超时，强制停止"
+            podman-compose kill
+            podman-compose down --remove-orphans --volumes
+        }
+    fi
     
-    echo ""
-    echo "📊 镜像状态："
-    podman images --filter reference=fmod* --format "table {{.Repository}}\t{{.Tag}}\t{{.Size}}\t{{.Created}}"
+    # 清理孤立容器
+    podman container prune -f
     
-    echo ""
-    show_port_info
+    log "服务停止完成"
 }
 
-# 主函数
-main() {
-    case "${1:-help}" in
-        "build")
-            log_info "构建 FMOD v7 镜像..."
-            check_podman
-            build_images
-            ;;
-        "deploy")
-            log_info "完整部署 FMOD v7..."
-            check_podman
-            get_port_config
-            backup_database
-            build_images
-            stop_services
-            start_services
-            cleanup
-            show_port_info
-            ;;
-        "start")
-            log_info "启动 FMOD v7 服务..."
-            check_podman
-            get_port_config
-            start_services
-            show_port_info
-            ;;
-        "stop")
-            log_info "停止 FMOD v7 服务..."
-            stop_services
-            ;;
-        "restart")
-            log_info "重启 FMOD v7 服务..."
-            check_podman
-            get_port_config
-            stop_services
-            start_services
-            show_port_info
-            ;;
-        "logs")
-            show_logs
-            ;;
-        "backup")
-            backup_database
-            ;;
-        "cleanup")
-            cleanup
-            ;;
-        "status")
-            show_status
-            ;;
-        "ports")
-            show_port_info
-            ;;
-        "help"|"-h"|"--help")
-            echo "FMOD v7 智能端口管理部署脚本"
-            echo ""
-            echo "使用方法: $0 {命令} [选项]"
-            echo ""
-            echo "可用命令:"
-            echo "  build     - 仅构建镜像"
-            echo "  deploy    - 完整部署（备份 + 构建 + 部署 + 清理）"
-            echo "  start     - 启动服务"
-            echo "  stop      - 停止服务"
-            echo "  restart   - 重启服务"
-            echo "  logs      - 查看服务日志"
-            echo "  backup    - 备份数据库"
-            echo "  cleanup   - 清理未使用资源"
-            echo "  status    - 显示服务状态"
-            echo "  ports     - 显示端口配置信息"
-            echo "  help      - 显示此帮助信息"
-            echo ""
-            echo "环境变量:"
-            echo "  ENVIRONMENT               - 部署环境 (production|staging，默认: production)"
-            echo "  FRONTEND_PORT_PRODUCTION  - 生产环境前端端口 (默认: 8080)"
-            echo "  BACKEND_PORT_PRODUCTION   - 生产环境后端端口 (默认: 3000)"
-            echo "  FRONTEND_PORT_STAGING     - 测试环境前端端口 (默认: 5173)"
-            echo "  BACKEND_PORT_STAGING      - 测试环境后端端口 (默认: 3001)"
-            echo ""
-            echo "端口智能管理："
-            echo "  - 自动检测端口占用情况"
-            echo "  - 如果首选端口被占用，自动分配下一个可用端口"
-            echo "  - 配置信息保存在 .port-config 文件中"
-            echo ""
-            echo "示例:"
-            echo "  $0 deploy                              # 部署到生产环境（端口自动分配）"
-            echo "  ENVIRONMENT=staging $0 start           # 启动测试环境"
-            echo "  FRONTEND_PORT_PRODUCTION=9090 $0 deploy # 生产环境使用自定义前端端口"
-            echo "  $0 ports                               # 查看当前端口配置"
-            echo "  $0 status                              # 查看详细状态"
-            ;;
-        *)
-            log_error "未知命令: $1"
-            echo "使用 '$0 help' 查看可用命令"
+# 📝 生成配置文件
+generate_config() {
+    step "生成配置文件..."
+    
+    # 生成环境变量文件
+    cat > "$DEPLOY_PATH/.env" << EOF
+# V7 Project Environment Configuration
+# Generated: $(date)
+
+# Images
+BACKEND_IMAGE=$BACKEND_IMAGE
+WEB_IMAGE=$WEB_IMAGE
+
+# Database
+DATABASE_URL=${DATABASE_URL:-sqlite:./data/prod.db}
+
+# Logging
+RUST_LOG=${RUST_LOG:-info}
+
+# Environment
+NODE_ENV=${NODE_ENV:-production}
+
+# Timezone
+TZ=Asia/Shanghai
+EOF
+
+    # 确保compose文件存在
+    if [[ ! -f "$DEPLOY_PATH/podman-compose.yml" ]]; then
+        error "podman-compose.yml文件不存在"
+        exit 1
+    fi
+    
+    log "配置文件生成完成"
+}
+
+# 🚀 启动服务
+start_services() {
+    step "启动服务..."
+    
+    cd "$DEPLOY_PATH"
+    
+    # 启动服务
+    if ! timeout $MAX_DEPLOY_TIME podman-compose up -d; then
+        error "服务启动失败"
+        exit 1
+    fi
+    
+    log "服务启动命令执行完成"
+}
+
+# 🏥 健康检查
+health_check() {
+    step "执行健康检查..."
+    
+    # 等待容器启动
+    sleep 30
+    
+    # 检查容器状态
+    info "检查容器状态..."
+    podman-compose ps
+    
+    # 检查后端健康状态
+    info "检查后端服务健康状态..."
+    local backend_healthy=false
+    for ((i=1; i<=HEALTH_CHECK_RETRIES; i++)); do
+        if curl -f -s "http://localhost:3000/health" >/dev/null 2>&1; then
+            log "后端服务健康检查通过"
+            backend_healthy=true
+            break
+        fi
+        warn "等待后端服务启动... ($i/$HEALTH_CHECK_RETRIES)"
+        sleep $HEALTH_CHECK_INTERVAL
+    done
+    
+    if [[ "$backend_healthy" != "true" ]]; then
+        error "后端服务健康检查失败"
+        show_logs
+        exit 1
+    fi
+    
+    # 检查前端健康状态
+    info "检查前端服务健康状态..."
+    local web_healthy=false
+    for ((i=1; i<=HEALTH_CHECK_RETRIES; i++)); do
+        if curl -f -s "http://localhost:8080/health" >/dev/null 2>&1; then
+            log "前端服务健康检查通过"
+            web_healthy=true
+            break
+        fi
+        warn "等待前端服务启动... ($i/$HEALTH_CHECK_RETRIES)"
+        sleep $HEALTH_CHECK_INTERVAL
+    done
+    
+    if [[ "$web_healthy" != "true" ]]; then
+        error "前端服务健康检查失败"
+        show_logs
+        exit 1
+    fi
+    
+    log "所有服务健康检查通过"
+}
+
+# 🧪 功能测试
+smoke_test() {
+    step "执行冒烟测试..."
+    
+    # 测试API端点
+    local tests=(
+        "http://localhost:3000/health::Backend Health"
+        "http://localhost:8080/health::Frontend Health"
+        "http://localhost:3000/api/items::MVP CRUD API"
+    )
+    
+    for test in "${tests[@]}"; do
+        local url=$(echo "$test" | cut -d':' -f1)
+        local name=$(echo "$test" | cut -d':' -f3)
+        
+        info "测试 $name..."
+        if curl -f -s "$url" >/dev/null; then
+            log "$name 测试通过"
+        else
+            error "$name 测试失败"
             exit 1
-            ;;
-    esac
+        fi
+    done
+    
+    log "冒烟测试完成"
 }
 
-# 执行主函数
-main "$@" 
+# 📊 显示部署信息
+show_deployment_info() {
+    step "部署信息总结..."
+    
+    echo ""
+    echo -e "${CYAN}🎉 部署成功完成！${NC}"
+    echo ""
+    echo -e "${BLUE}📋 服务信息:${NC}"
+    echo -e "  🌐 前端访问地址: http://$(curl -s ifconfig.me):8080"
+    echo -e "  🔧 后端API地址:  http://$(curl -s ifconfig.me):3000"
+    echo -e "  📊 健康检查:     http://$(curl -s ifconfig.me):3000/health"
+    echo ""
+    echo -e "${BLUE}📁 重要路径:${NC}"
+    echo -e "  📂 部署目录: $DEPLOY_PATH"
+    echo -e "  💾 数据目录: $DATA_DIR"
+    echo -e "  📜 日志目录: $LOG_DIR"
+    echo -e "  🗄️  备份目录: $BACKUP_DIR"
+    echo ""
+    echo -e "${BLUE}💻 系统资源:${NC}"
+    echo -e "  🖥️  CPU使用: $(top -bn1 | grep "Cpu(s)" | awk '{print $2}' | cut -d'%' -f1)%"
+    echo -e "  🧠 内存使用: $(free -h | awk '/^Mem:/ {print $3"/"$2}')"
+    echo -e "  💽 磁盘使用: $(df -h "$DEPLOY_PATH" | awk 'NR==2 {print $3"/"$2" ("$5")"}')"
+    echo ""
+    echo -e "${BLUE}🐳 容器状态:${NC}"
+    podman-compose ps
+    echo ""
+}
+
+# 📜 显示日志
+show_logs() {
+    warn "显示最近的服务日志..."
+    echo ""
+    echo -e "${CYAN}=== 后端服务日志 ===${NC}"
+    podman-compose logs --tail=20 backend || true
+    echo ""
+    echo -e "${CYAN}=== 前端服务日志 ===${NC}"
+    podman-compose logs --tail=20 web || true
+}
+
+# 🔄 回滚功能
+rollback() {
+    error "部署失败，开始回滚..."
+    
+    local latest_backup=$(cat "$BACKUP_DIR/latest_backup" 2>/dev/null || echo "")
+    if [[ -z "$latest_backup" ]]; then
+        error "找不到备份，无法回滚"
+        exit 1
+    fi
+    
+    local backup_path="$BACKUP_DIR/$latest_backup"
+    if [[ ! -d "$backup_path" ]]; then
+        error "备份目录不存在: $backup_path"
+        exit 1
+    fi
+    
+    step "从备份回滚: $latest_backup"
+    
+    # 停止当前服务
+    podman-compose down --remove-orphans || true
+    
+    # 恢复数据
+    if [[ -f "$backup_path/prod.db" ]]; then
+        cp "$backup_path/prod.db" "$DATA_DIR/"
+        log "数据库回滚完成"
+    fi
+    
+    # 恢复配置
+    if [[ -f "$backup_path/podman-compose.yml" ]]; then
+        cp "$backup_path/podman-compose.yml" "$DEPLOY_PATH/"
+        cp "$backup_path/.env" "$DEPLOY_PATH/" 2>/dev/null || true
+        log "配置文件回滚完成"
+    fi
+    
+    # 重启服务
+    podman-compose up -d
+    
+    log "回滚完成"
+}
+
+# 🧹 清理资源
+cleanup() {
+    step "清理资源..."
+    
+    # 清理未使用的镜像
+    podman image prune -f
+    
+    # 清理旧镜像（保留最近3个版本）
+    local backend_images=$(podman images --format "{{.Repository}}:{{.Tag}} {{.Created}}" | \
+                          grep "$(echo "$BACKEND_IMAGE" | cut -d':' -f1)" | \
+                          sort -k2 -r | tail -n +4 | awk '{print $1}')
+    local web_images=$(podman images --format "{{.Repository}}:{{.Tag}} {{.Created}}" | \
+                      grep "$(echo "$WEB_IMAGE" | cut -d':' -f1)" | \
+                      sort -k2 -r | tail -n +4 | awk '{print $1}')
+    
+    for image in $backend_images $web_images; do
+        podman rmi "$image" 2>/dev/null || true
+    done
+    
+    log "资源清理完成"
+}
+
+# 🎯 主函数
+main() {
+    echo -e "${PURPLE}"
+    echo "🚀 V7 Project Deployment Script"
+    echo "==============================="
+    echo -e "${NC}"
+    
+    # 错误处理
+    trap 'error "部署过程中发生错误"; show_logs; rollback; exit 1' ERR
+    
+    # 执行部署流程
+    check_prerequisites
+    prepare_directories
+    backup_data
+    pull_images
+    stop_services
+    generate_config
+    start_services
+    health_check
+    smoke_test
+    cleanup
+    show_deployment_info
+    
+    log "部署流程全部完成！"
+}
+
+# 🚀 脚本入口
+if [[ "${BASH_SOURCE[0]}" == "${0}" ]]; then
+    main "$@"
+fi 

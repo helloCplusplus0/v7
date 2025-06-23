@@ -1,5 +1,0 @@
-platforms:
-- web
-- backend
-web:
-- hello_fmod
