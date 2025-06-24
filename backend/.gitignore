@@ -3,7 +3,7 @@
 **/*.rs.bk
 
 # Cargo
-Cargo.lock
+# Cargo.lock  # 注释掉，Cargo.lock应该被提交以确保依赖版本一致性
 
 # IDE
 .vscode/
