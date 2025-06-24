@@ -284,13 +284,42 @@ jobs:
           name: frontend-dist
           path: web/dist/
 
+      - name: 🔍 Debug Image Tags
+        run: |
+          echo "🔍 调试镜像标签值："
+          echo "后端镜像: '${{ needs.environment-check.outputs.backend-image }}'"
+          echo "前端镜像: '${{ needs.environment-check.outputs.web-image }}'"
+          echo "镜像标签长度: ${#BACKEND_TAG}"
+          echo "Git SHA: ${{ github.sha }}"
+          
+          BACKEND_TAG="${{ needs.environment-check.outputs.backend-image }}"
+          WEB_TAG="${{ needs.environment-check.outputs.web-image }}"
+          
+          if [[ -z "$BACKEND_TAG" ]]; then
+            echo "❌ 错误：后端镜像标签为空！"
+            echo "🔧 使用应急默认值..."
+            BACKEND_TAG="ghcr.io/hellocplusplus0/v7/backend:latest"
+            echo "应急后端镜像: $BACKEND_TAG"
+          fi
+          
+          if [[ -z "$WEB_TAG" ]]; then
+            echo "❌ 错误：前端镜像标签为空！"
+            echo "🔧 使用应急默认值..."
+            WEB_TAG="ghcr.io/hellocplusplus0/v7/web:latest"
+            echo "应急前端镜像: $WEB_TAG"
+          fi
+          
+          # 将修正后的标签保存为环境变量
+          echo "FINAL_BACKEND_TAG=$BACKEND_TAG" >> $GITHUB_ENV
+          echo "FINAL_WEB_TAG=$WEB_TAG" >> $GITHUB_ENV
+
       - name: 🦀 Build and Push Backend Image
         uses: docker/build-push-action@v5
         with:
           context: ./backend
           file: ./backend/Dockerfile
           push: true
-          tags: ${{ needs.environment-check.outputs.backend-image }}
+          tags: ${{ env.FINAL_BACKEND_TAG }}
           cache-from: type=gha
           cache-to: type=gha,mode=max
           platforms: linux/amd64
@@ -306,7 +335,7 @@ jobs:
           context: ./web
           file: ./web/Dockerfile
           push: true
-          tags: ${{ needs.environment-check.outputs.web-image }}
+          tags: ${{ env.FINAL_WEB_TAG }}
           cache-from: type=gha
           cache-to: type=gha,mode=max
           platforms: linux/amd64
