@@ -2,7 +2,7 @@
 # 多阶段构建 - 专为轻量化和极致性能设计
 
 # ===== 🏗️ 构建阶段 =====
-FROM node:20-alpine AS builder
+FROM node:18-alpine AS builder
 
 # 📦 安装构建依赖
 RUN apk add --no-cache \
@@ -18,8 +18,8 @@ WORKDIR /build
 # 📦 复制依赖文件（利用Docker层缓存）
 COPY package.json package-lock.json ./
 
-# 🔨 安装依赖（生产环境优化）
-RUN npm ci --only=production --no-audit --no-fund && \
+# 🔨 安装依赖（构建环境需要全部依赖）
+RUN npm ci --no-audit --no-fund && \
     npm cache clean --force
 
 # 📁 复制源代码
@@ -104,7 +104,7 @@ EOF
 RUN cat > /etc/nginx/conf.d/default.conf << 'EOF'
 # 🌐 V7 Web 站点配置
 server {
-    listen 8080;
+    listen 80;
     server_name _;
     root /usr/share/nginx/html;
     index index.html;
@@ -192,14 +192,14 @@ ENV NGINX_WORKER_PROCESSES=auto
 ENV NGINX_WORKER_CONNECTIONS=1024
 
 # 🔌 暴露端口
-EXPOSE 8080
+EXPOSE 80
 
 # 👤 切换到非特权用户
 USER appuser:appgroup
 
 # 🏥 健康检查
 HEALTHCHECK --interval=30s --timeout=10s --start-period=5s --retries=3 \
-    CMD curl -f http://localhost:8080/health || exit 1
+    CMD curl -f http://localhost:80/health || exit 1
 
 # 🏷️ 镜像标签
 LABEL maintainer="hellocplusplus0" \
@@ -207,7 +207,7 @@ LABEL maintainer="hellocplusplus0" \
       version="latest" \
       architecture="podman" \
       description="V7 Web - SolidJS + Web v7 Architecture" \
-      node.version="20" \
+      node.version="18" \
       nginx.version="1.25"
 
 # 🚀 启动命令
@@ -221,7 +221,7 @@ CMD ["nginx", "-g", "daemon off;"]
 # 🚀 运行命令:
 #   podman run -d \
 #     --name v7-web \
-#     -p 8080:8080 \
+#     -p 80:80 \
 #     -v ./logs:/var/log/nginx:Z \
 #     v7-web:latest
 # 
@@ -229,7 +229,7 @@ CMD ["nginx", "-g", "daemon off;"]
 #   podman inspect v7-web:latest
 # 
 # 🧪 测试健康检查:
-#   podman exec v7-web curl -f http://localhost:8080/health
+#   podman exec v7-web curl -f http://localhost:80/health
 # 
 # 📊 性能优化特性:
 # - 多阶段构建 (减小最终镜像大小)

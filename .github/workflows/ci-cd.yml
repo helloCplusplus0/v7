@@ -44,7 +44,7 @@ jobs:
         id: versions
         run: |
           echo "node-version=18" >> $GITHUB_OUTPUT
-          echo "rust-version=stable" >> $GITHUB_OUTPUT
+          echo "rust-version=1.87" >> $GITHUB_OUTPUT
           echo "🌍 Runner: ${{ runner.os }}"
           echo "📁 Workspace: ${{ github.workspace }}"
           echo "🔧 Event: ${{ github.event_name }}"
