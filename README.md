@@ -259,3 +259,36 @@ v7/
 - 遇到问题先查看日志，再参考故障排除指南
 
 **🚀 立即开始**: `git clone https://github.com/helloCplusplus0/v7.git && cd v7`
+
+## 🛠️ 开发工具脚本
+
+### 本地开发验证脚本
+
+| 脚本 | 功能 | 使用场景 | 执行时间 |
+|------|------|----------|----------|
+| `./scripts/local-ci-check.sh` | 完整本地CI检查 | 推送前验证 | ~3-5分钟 |
+| `./scripts/check-config-consistency.sh` | 配置一致性检查 | 配置修改后 | ~30秒 |
+| `./scripts/test-docker-build.sh` | Docker构建测试 | Docker文件修改后 | ~5-10分钟 |
+| `./scripts/verify-ci-consistency.sh` | CI配置验证 | CI配置修改后 | ~1分钟 |
+
+### 推荐的开发流程
+
+```bash
+# 1. 代码修改后 - 快速检查
+./scripts/check-config-consistency.sh
+
+# 2. 重要修改后 - 完整验证
+./scripts/local-ci-check.sh
+
+# 3. Docker相关修改后 - 构建测试
+./scripts/test-docker-build.sh
+
+# 4. 推送前 - 最终验证
+./scripts/verify-ci-consistency.sh
+```
+
+### 故障排除
+
+如果遇到构建问题，请参考：
+- 📖 [Docker构建问题排查指南](docs/docker-build-troubleshooting.md)
+- 🔧 [DevOps完整指南](docs/devops-complete-guide.md)

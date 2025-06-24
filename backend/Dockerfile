@@ -27,11 +27,11 @@ WORKDIR /build
 
 # 📦 复制依赖文件（利用Docker层缓存）
 COPY Cargo.toml Cargo.lock build.rs ./
-COPY src/main.rs src/main.rs
 
-# 🔨 预构建依赖（缓存优化）
+# 🔨 预构建依赖（缓存优化）- 正确处理混合项目
 RUN mkdir -p src && \
     echo "fn main() {}" > src/main.rs && \
+    echo "// Dummy lib for dependency caching" > src/lib.rs && \
     cargo build --release --target x86_64-unknown-linux-musl && \
     rm -rf src
 
@@ -46,7 +46,7 @@ RUN cargo build \
     --config "profile.release.codegen-units=1" \
     --config "profile.release.panic='abort'" \
     --config "profile.release.strip=true" \
-    && cp target/x86_64-unknown-linux-musl/release/backend /build/v7-backend
+    && cp target/x86_64-unknown-linux-musl/release/fmod_slice /build/v7-backend
 
 # 🔍 验证二进制文件
 RUN file /build/v7-backend && \
