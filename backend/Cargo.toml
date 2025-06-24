@@ -95,9 +95,10 @@ default = []
 auto-docs = []  # 启用自动文档生成
 runtime-collection = []  # 启用运行时API数据收集
 
-[[bench]]
-name = "performance_benchmark"
-harness = false
+# 基准测试配置 - 仅在开发环境使用
+# [[bench]]
+# name = "performance_benchmark"
+# harness = false
 
 [build-dependencies]
 # 构建时依赖
