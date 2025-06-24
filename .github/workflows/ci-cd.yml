@@ -61,8 +61,8 @@ jobs:
             TAG="${{ github.ref_name }}"
           fi
           
-          BACKEND_IMAGE="${{ env.BACKEND_IMAGE_BASE }}:${TAG}"
-          WEB_IMAGE="${{ env.WEB_IMAGE_BASE }}:${TAG}"
+          BACKEND_IMAGE="${env.BACKEND_IMAGE_BASE}:${TAG}"
+          WEB_IMAGE="${env.WEB_IMAGE_BASE}:${TAG}"
           
           echo "backend-image=${BACKEND_IMAGE}" >> $GITHUB_OUTPUT
           echo "web-image=${WEB_IMAGE}" >> $GITHUB_OUTPUT
