@@ -51,6 +51,9 @@ jobs:
 
       - name: 🏷️ Set Image Tags
         id: images
+        env:
+          BACKEND_IMAGE_BASE_VAR: ${{ env.BACKEND_IMAGE_BASE }}
+          WEB_IMAGE_BASE_VAR: ${{ env.WEB_IMAGE_BASE }}
         run: |
           # 基于分支设置镜像标签
           if [[ "${{ github.ref }}" == "refs/heads/main" ]]; then
@@ -61,17 +64,9 @@ jobs:
             TAG="${{ github.ref_name }}"
           fi
           
-          # 确保镜像基础地址不为空，使用默认值
-          BACKEND_BASE="${{ env.BACKEND_IMAGE_BASE }}"
-          WEB_BASE="${{ env.WEB_IMAGE_BASE }}"
-          
-          if [[ -z "$BACKEND_BASE" ]]; then
-            BACKEND_BASE="ghcr.io/hellocplusplus0/v7/backend"
-          fi
-          
-          if [[ -z "$WEB_BASE" ]]; then
-            WEB_BASE="ghcr.io/hellocplusplus0/v7/web"
-          fi
+          # 使用环境变量，如果为空则使用默认值
+          BACKEND_BASE="${BACKEND_IMAGE_BASE_VAR:-ghcr.io/hellocplusplus0/v7/backend}"
+          WEB_BASE="${WEB_IMAGE_BASE_VAR:-ghcr.io/hellocplusplus0/v7/web}"
           
           BACKEND_IMAGE="${BACKEND_BASE}:${TAG}"
           WEB_IMAGE="${WEB_BASE}:${TAG}"
@@ -81,9 +76,13 @@ jobs:
           echo "📦 后端镜像: ${BACKEND_IMAGE}"
           echo "🌐 前端镜像: ${WEB_IMAGE}"
           echo "🔍 调试信息:"
-          echo "  BACKEND_IMAGE_BASE: ${{ env.BACKEND_IMAGE_BASE }}"
-          echo "  WEB_IMAGE_BASE: ${{ env.WEB_IMAGE_BASE }}"
+          echo "  原始 BACKEND_IMAGE_BASE: ${{ env.BACKEND_IMAGE_BASE }}"
+          echo "  原始 WEB_IMAGE_BASE: ${{ env.WEB_IMAGE_BASE }}"
+          echo "  处理后 BACKEND_BASE: ${BACKEND_BASE}"
+          echo "  处理后 WEB_BASE: ${WEB_BASE}"
           echo "  TAG: ${TAG}"
+          echo "  最终 BACKEND_IMAGE: ${BACKEND_IMAGE}"
+          echo "  最终 WEB_IMAGE: ${WEB_IMAGE}"
 
       - name: 🚀 Check Deployment Configuration
         id: deploy-check
