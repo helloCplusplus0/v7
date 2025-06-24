@@ -415,8 +415,8 @@ jobs:
           # 创建生产环境配置文件
           cat > .env.production << EOF
           # 🐳 容器镜像配置
-          BACKEND_IMAGE=${{ needs.environment-check.outputs.backend-image }}
-          WEB_IMAGE=${{ needs.environment-check.outputs.web-image }}
+          BACKEND_IMAGE=${BACKEND_IMAGE}
+          WEB_IMAGE=${WEB_IMAGE}
           
           # 🔧 应用配置 - 使用真实Secrets
           DATABASE_URL=${{ secrets.DATABASE_URL || 'sqlite:./data/prod.db' }}
@@ -439,20 +439,6 @@ jobs:
           EOF
           
           echo "📄 生产环境配置:"
-          cat .env.production
-          
-          # 验证镜像变量不为空，添加默认值保护
-          if grep -q "BACKEND_IMAGE=$" .env.production; then
-            echo "❌ 警告：后端镜像变量为空，使用默认值"
-            sed -i 's/BACKEND_IMAGE=$/BACKEND_IMAGE=ghcr.io\/hellocplusplus0\/v7\/backend:latest/' .env.production
-          fi
-          
-          if grep -q "WEB_IMAGE=$" .env.production; then
-            echo "❌ 警告：前端镜像变量为空，使用默认值"
-            sed -i 's/WEB_IMAGE=$/WEB_IMAGE=ghcr.io\/hellocplusplus0\/v7\/web:latest/' .env.production
-          fi
-          
-          echo "🔍 最终配置文件:"
           cat .env.production
           
           # 创建部署脚本
