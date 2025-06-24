@@ -407,7 +407,9 @@ jobs:
           # 🏷️ 版本标签
           GIT_SHA=${{ github.sha }}
           BUILD_TIME=$(date -u +%Y-%m-%dT%H:%M:%SZ)
-          VERSION=${{ github.ref_name }}-${{ github.sha }}
+          VERSION="${{ github.ref_name }}-${{ github.sha }}"
+          BRANCH_NAME="${{ github.ref_name }}"
+          COMMIT_SHA="${{ github.sha }}"
           EOF
           
           echo "📄 生产环境配置:"
@@ -418,9 +420,28 @@ jobs:
           #!/bin/bash
           set -euo pipefail
           
+          # 加载环境变量
+          if [ -f ".env.production" ]; then
+            echo "📋 加载环境变量文件..."
+            set -a  # 自动导出所有变量
+            source .env.production
+            set +a  # 关闭自动导出
+            echo "✅ 环境变量加载完成"
+            echo "🔍 关键环境变量检查:"
+            echo "  - VERSION: ${VERSION:-未设置}"
+            echo "  - BACKEND_IMAGE: ${BACKEND_IMAGE:-未设置}"
+            echo "  - WEB_IMAGE: ${WEB_IMAGE:-未设置}"
+            echo "  - GIT_SHA: ${GIT_SHA:-未设置}"
+          else
+            echo "❌ 未找到 .env.production 文件"
+            echo "📁 当前目录内容:"
+            ls -la
+            exit 1
+          fi
+          
           echo "🚀 开始V7项目生产环境部署..."
           echo "📅 部署时间: $(date)"
-          echo "🏷️ 版本: $VERSION"
+          echo "🏷️ 版本: ${VERSION:-unknown}"
           
           # 切换到部署目录
           cd ${{ secrets.DEPLOY_PATH }}
@@ -433,10 +454,10 @@ jobs:
           echo "${{ env.REGISTRY_PASSWORD }}" | podman login ${{ env.REGISTRY }} -u ${{ env.REGISTRY_USER }} --password-stdin
           
             echo "📦 拉取最新镜像..."
-          echo "  - 后端: ${{ needs.environment-check.outputs.backend-image }}"
-          podman pull ${{ needs.environment-check.outputs.backend-image }}
-          echo "  - 前端: ${{ needs.environment-check.outputs.web-image }}"
-          podman pull ${{ needs.environment-check.outputs.web-image }}
+          echo "  - 后端: ${BACKEND_IMAGE}"
+          podman pull "${BACKEND_IMAGE}"
+          echo "  - 前端: ${WEB_IMAGE}"
+          podman pull "${WEB_IMAGE}"
           
           echo "🔄 执行滚动更新部署..."
           
