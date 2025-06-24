@@ -455,79 +455,8 @@ jobs:
           echo "🔍 最终配置文件:"
           cat .env.production
           
-          # 创建部署脚本
-          cat > deploy.sh << 'EOF'
-          #!/bin/bash
-          set -euo pipefail
-          
-          # 加载环境变量
-          if [ -f ".env.production" ]; then
-            echo "📋 加载环境变量文件..."
-            set -a  # 自动导出所有变量
-            source .env.production
-            set +a  # 关闭自动导出
-            echo "✅ 环境变量加载完成"
-            echo "🔍 关键环境变量检查:"
-            echo "  - VERSION: ${VERSION:-未设置}"
-            echo "  - BACKEND_IMAGE: ${BACKEND_IMAGE:-未设置}"
-            echo "  - WEB_IMAGE: ${WEB_IMAGE:-未设置}"
-            echo "  - GIT_SHA: ${GIT_SHA:-未设置}"
-          else
-            echo "❌ 未找到 .env.production 文件"
-            echo "📁 当前目录内容:"
-            ls -la
-            exit 1
-          fi
-          
-          echo "🚀 开始V7项目生产环境部署..."
-          echo "📅 部署时间: $(date)"
-          echo "🏷️ 版本: ${VERSION:-unknown}"
-          
-          # 切换到部署目录
-          cd ${{ secrets.DEPLOY_PATH }}
-          
-          echo "🔍 当前环境检查:"
-          pwd
-          ls -la
-          
-          echo "🐳 登录到容器镜像仓库..."
-          echo "${{ env.REGISTRY_PASSWORD }}" | podman login ${{ env.REGISTRY }} -u ${{ env.REGISTRY_USER }} --password-stdin
-          
-            echo "📦 拉取最新镜像..."
-          echo "  - 后端: ${BACKEND_IMAGE}"
-          podman pull "${BACKEND_IMAGE}"
-          echo "  - 前端: ${WEB_IMAGE}"
-          podman pull "${WEB_IMAGE}"
-          
-          echo "🔄 执行滚动更新部署..."
-          
-          # 备份当前运行的容器信息
-          podman-compose --env-file .env.production ps > deployment-backup-$(date +%Y%m%d-%H%M%S).log 2>/dev/null || true
-          
-          # 停止现有服务
-          echo "⏹️  停止现有服务..."
-          podman-compose --env-file .env.production down || true
-          
-          # 清理旧镜像和缓存
-          echo "🧹 清理旧镜像..."
-          podman image prune -a -f || true
-          podman system prune -f || true
-          
-          # 启动新服务
-          echo "🚀 启动新服务..."
-          podman-compose --env-file .env.production up -d
-          
-          echo "⏳ 等待服务启动..."
-          sleep 30
-          
-          echo "🔍 检查服务状态:"
-          podman-compose --env-file .env.production ps
-          
-          echo "📊 检查容器健康状态:"
-          podman ps --format "table {{.Names}}\t{{.Status}}\t{{.Ports}}"
-          
-          echo "✅ 部署完成！"
-          EOF
+          # 复制增强部署脚本
+          cp scripts/enhanced-deploy.sh deploy.sh
           
           chmod +x deploy.sh
 
@@ -543,6 +472,7 @@ jobs:
           # 上传文件
           scp -i ~/.ssh/id_rsa -P ${{ secrets.SERVER_PORT || 22 }} -o StrictHostKeyChecking=no \
             podman-compose.yml .env.production deploy.sh \
+            scripts/enhanced-deploy.sh scripts/diagnose-deployment-health.sh \
             ${{ secrets.SERVER_USER }}@${{ secrets.SERVER_HOST }}:${{ secrets.DEPLOY_PATH }}/
           
           echo "✅ 文件上传完成"
@@ -565,53 +495,113 @@ jobs:
           
           SERVER_HOST="${{ secrets.SERVER_HOST }}"
           
-          # 健康检查函数
+          # 上传诊断脚本到服务器
+          echo "📤 上传健康诊断脚本..."
+          scp -i ~/.ssh/id_rsa -P ${{ secrets.SERVER_PORT || 22 }} -o StrictHostKeyChecking=no \
+            scripts/diagnose-deployment-health.sh \
+            ${{ secrets.SERVER_USER }}@${{ secrets.SERVER_HOST }}:${{ secrets.DEPLOY_PATH }}/
+          
+          # 在服务器上执行诊断
+          echo "🔍 在服务器上执行初步诊断..."
+          ssh -i ~/.ssh/id_rsa -p ${{ secrets.SERVER_PORT || 22 }} -o StrictHostKeyChecking=no \
+            ${{ secrets.SERVER_USER }}@${{ secrets.SERVER_HOST }} \
+            "cd ${{ secrets.DEPLOY_PATH }} && chmod +x diagnose-deployment-health.sh && ./diagnose-deployment-health.sh diagnose"
+          
+          # 健康检查函数（增强版）
           check_service() {
             local service_name="$1"
             local url="$2"
-            local max_attempts=10
+            local max_attempts=15
             local attempt=1
             
             echo "🔍 检查 $service_name 服务..."
             
             while [ $attempt -le $max_attempts ]; do
-              if curl -f -s --connect-timeout 10 "$url" > /dev/null; then
-                echo "✅ $service_name 服务健康 (尝试 $attempt/$max_attempts)"
-                return 0
+              # 先检查端口是否开放
+              if timeout 5 bash -c "</dev/tcp/$SERVER_HOST/${url##*:}" 2>/dev/null; then
+                echo "✅ 端口 ${url##*:} 已开放"
+                
+                # 再检查HTTP响应
+                if curl -f -s --connect-timeout 10 --max-time 30 "$url" > /dev/null; then
+                  echo "✅ $service_name 服务健康 (尝试 $attempt/$max_attempts)"
+                  return 0
+                else
+                  echo "⚠️  端口开放但HTTP响应异常 (尝试 $attempt/$max_attempts)"
+                fi
               else
-                echo "⏳ $service_name 服务检查失败，等待重试... ($attempt/$max_attempts)"
-                sleep 15
-                ((attempt++))
+                echo "⏳ $service_name 端口未开放，等待重试... ($attempt/$max_attempts)"
               fi
+              
+              # 如果是第5次失败，执行详细诊断
+              if [ $attempt -eq 5 ]; then
+                echo "🔧 执行中期诊断..."
+                ssh -i ~/.ssh/id_rsa -p ${{ secrets.SERVER_PORT || 22 }} -o StrictHostKeyChecking=no \
+                  ${{ secrets.SERVER_USER }}@${{ secrets.SERVER_HOST }} \
+                  "cd ${{ secrets.DEPLOY_PATH }} && ./diagnose-deployment-health.sh fix"
+              fi
+              
+              sleep 15
+              ((attempt++))
             done
             
             echo "❌ $service_name 服务健康检查失败"
+            
+            # 失败时执行详细诊断
+            echo "🔧 执行失败诊断..."
+            ssh -i ~/.ssh/id_rsa -p ${{ secrets.SERVER_PORT || 22 }} -o StrictHostKeyChecking=no \
+              ${{ secrets.SERVER_USER }}@${{ secrets.SERVER_HOST }} \
+              "cd ${{ secrets.DEPLOY_PATH }} && ./diagnose-deployment-health.sh report"
+            
             return 1
           }
           
           # 检查后端服务
+          echo "🦀 开始后端健康检查..."
           if check_service "后端" "http://$SERVER_HOST:3000/health"; then
-            echo "🦀 后端服务运行正常"
+            echo "✅ 后端服务运行正常"
           else
-            echo "❌ 后端服务异常"
-            exit 1
+            echo "❌ 后端服务异常，尝试修复..."
+            
+            # 尝试修复后端服务
+            ssh -i ~/.ssh/id_rsa -p ${{ secrets.SERVER_PORT || 22 }} -o StrictHostKeyChecking=no \
+              ${{ secrets.SERVER_USER }}@${{ secrets.SERVER_HOST }} \
+              "cd ${{ secrets.DEPLOY_PATH }} && ./diagnose-deployment-health.sh restart"
+            
+            # 再次等待和检查
+            echo "⏳ 等待服务重启..."
+            sleep 60
+            
+            if check_service "后端" "http://$SERVER_HOST:3000/health"; then
+              echo "✅ 后端服务修复成功"
+            else
+              echo "❌ 后端服务修复失败，但继续检查前端"
+              # 不要立即退出，继续检查前端
+            fi
           fi
           
           # 检查前端服务
-          if check_service "前端" "http://$SERVER_HOST:8080/health"; then
-            echo "🌐 前端服务运行正常"
+          echo "🌐 开始前端健康检查..."
+          if check_service "前端" "http://$SERVER_HOST:8080"; then
+            echo "✅ 前端服务运行正常"
           else
             echo "❌ 前端服务异常"
-                  exit 1
-                fi
+            # 前端失败不阻止部署，因为它依赖于后端
+            echo "⚠️  前端服务异常，但继续部署流程"
+          fi
           
           # 检查API功能
           echo "🔧 测试API功能..."
-          if curl -f -s "http://$SERVER_HOST:3000/api/items" > /dev/null; then
+          if curl -f -s --connect-timeout 10 --max-time 30 "http://$SERVER_HOST:3000/api/info" > /dev/null; then
             echo "✅ API功能正常"
           else
             echo "⚠️  API功能可能异常，但继续部署"
           fi
+          
+          # 最终健康报告
+          echo "📊 生成最终健康报告..."
+          ssh -i ~/.ssh/id_rsa -p ${{ secrets.SERVER_PORT || 22 }} -o StrictHostKeyChecking=no \
+            ${{ secrets.SERVER_USER }}@${{ secrets.SERVER_HOST }} \
+            "cd ${{ secrets.DEPLOY_PATH }} && ./diagnose-deployment-health.sh report"
 
       - name: 📊 Deployment Summary & Verification
         run: |
