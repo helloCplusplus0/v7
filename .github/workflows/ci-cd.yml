@@ -18,12 +18,12 @@ env:
   WEB_IMAGE_BASE: ${{ secrets.WEB_IMAGE || 'ghcr.io/hellocplusplus0/v7/web' }}
   
   # Rust环境变量 - 与本地CI完全一致
-      CARGO_INCREMENTAL: 0
-      CARGO_PROFILE_DEV_DEBUG: 0
-      CARGO_TERM_COLOR: always
-      RUST_BACKTRACE: short
-      CARGO_UNSTABLE_SPARSE_REGISTRY: true
-      CARGO_REGISTRIES_CRATES_IO_PROTOCOL: sparse
+  CARGO_INCREMENTAL: 0
+  CARGO_PROFILE_DEV_DEBUG: 0
+  CARGO_TERM_COLOR: always
+  RUST_BACKTRACE: short
+  CARGO_UNSTABLE_SPARSE_REGISTRY: true
+  CARGO_REGISTRIES_CRATES_IO_PROTOCOL: sparse
 
 jobs:
   # 环境验证阶段
