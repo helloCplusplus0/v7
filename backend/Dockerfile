@@ -2,7 +2,7 @@
 # 多阶段构建 - 专为轻量化和极致性能设计
 
 # ===== 🏗️ 构建阶段 =====
-FROM rust:1.75-alpine AS builder
+FROM rust:1.87-alpine AS builder
 
 # 📦 安装构建依赖
 RUN apk add --no-cache \
@@ -102,7 +102,7 @@ LABEL maintainer="hellocplusplus0" \
       version="latest" \
       architecture="podman" \
       description="V7 Backend - Rust + FMOD v7 Architecture" \
-      rust.version="1.75" \
+      rust.version="1.87" \
       build.optimization="lto+strip+static"
 
 # 🚀 启动命令
