@@ -36,8 +36,6 @@ jobs:
       backend-image: ${{ steps.images.outputs.backend-image }}
       web-image: ${{ steps.images.outputs.web-image }}
       deploy-ready: ${{ steps.deploy-check.outputs.deploy-ready }}
-      backend-image: ${{ steps.images.outputs.backend-image }}
-      web-image: ${{ steps.images.outputs.web-image }}
     steps:
       - name: 📋 Checkout Repository
         uses: actions/checkout@v4
@@ -55,9 +53,6 @@ jobs:
         id: images
         run: |
           # 基于分支设置镜像标签
-          echo "当前分支: ${{ github.ref }}"
-          echo "分支名称: ${{ github.ref_name }}"
-          
           if [[ "${{ github.ref }}" == "refs/heads/main" ]]; then
             TAG="latest"
           elif [[ "${{ github.ref }}" == "refs/heads/develop" ]]; then
@@ -66,8 +61,8 @@ jobs:
             TAG="${{ github.ref_name }}"
           fi
           
-          BACKEND_IMAGE="ghcr.io/hellocplusplus0/v7/backend:${TAG}"
-          WEB_IMAGE="ghcr.io/hellocplusplus0/v7/web:${TAG}"
+          BACKEND_IMAGE="${{ env.BACKEND_IMAGE_BASE }}:${TAG}"
+          WEB_IMAGE="${{ env.WEB_IMAGE_BASE }}:${TAG}"
           
           echo "backend-image=${BACKEND_IMAGE}" >> $GITHUB_OUTPUT
           echo "web-image=${WEB_IMAGE}" >> $GITHUB_OUTPUT
