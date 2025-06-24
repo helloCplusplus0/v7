@@ -26,7 +26,7 @@ ENV OPENSSL_DIR=/usr
 WORKDIR /build
 
 # 📦 复制依赖文件（利用Docker层缓存）
-COPY Cargo.toml Cargo.lock ./
+COPY Cargo.toml Cargo.lock build.rs ./
 COPY src/main.rs src/main.rs
 
 # 🔨 预构建依赖（缓存优化）
