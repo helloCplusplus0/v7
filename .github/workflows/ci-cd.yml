@@ -61,13 +61,29 @@ jobs:
             TAG="${{ github.ref_name }}"
           fi
           
-          BACKEND_IMAGE="${{ env.BACKEND_IMAGE_BASE }}:${TAG}"
-          WEB_IMAGE="${{ env.WEB_IMAGE_BASE }}:${TAG}"
+          # 确保镜像基础地址不为空，使用默认值
+          BACKEND_BASE="${{ env.BACKEND_IMAGE_BASE }}"
+          WEB_BASE="${{ env.WEB_IMAGE_BASE }}"
+          
+          if [[ -z "$BACKEND_BASE" ]]; then
+            BACKEND_BASE="ghcr.io/hellocplusplus0/v7/backend"
+          fi
+          
+          if [[ -z "$WEB_BASE" ]]; then
+            WEB_BASE="ghcr.io/hellocplusplus0/v7/web"
+          fi
+          
+          BACKEND_IMAGE="${BACKEND_BASE}:${TAG}"
+          WEB_IMAGE="${WEB_BASE}:${TAG}"
           
           echo "backend-image=${BACKEND_IMAGE}" >> $GITHUB_OUTPUT
           echo "web-image=${WEB_IMAGE}" >> $GITHUB_OUTPUT
           echo "📦 后端镜像: ${BACKEND_IMAGE}"
           echo "🌐 前端镜像: ${WEB_IMAGE}"
+          echo "🔍 调试信息:"
+          echo "  BACKEND_IMAGE_BASE: ${{ env.BACKEND_IMAGE_BASE }}"
+          echo "  WEB_IMAGE_BASE: ${{ env.WEB_IMAGE_BASE }}"
+          echo "  TAG: ${TAG}"
 
       - name: 🚀 Check Deployment Configuration
         id: deploy-check
