@@ -1,5 +1,5 @@
 // shared/hooks/useAsync.ts - 异步操作hooks
-import { createSignal, createEffect, Accessor } from 'solid-js';
+import { createSignal, createEffect, Accessor, onCleanup } from 'solid-js';
 
 export interface AsyncState<T> {
   loading: Accessor<boolean>;
@@ -15,37 +15,34 @@ export function useAsync<T>(
   const [loading, setLoading] = createSignal(false);
   const [data, setData] = createSignal<T | null>(null);
   const [error, setError] = createSignal<Error | null>(null);
+  let currentCall = 0;
 
   const execute = async (): Promise<T> => {
+    const callId = ++currentCall;
+    setLoading(true);
+    setError(null);
     try {
-      setLoading(true);
-      setError(null);
-      
       const result = await asyncFunction();
-      
-      setData(() => result);
+      if (callId === currentCall) {
+        setData(() => result);
+        setLoading(false);
+      }
       return result;
     } catch (err) {
-      const error = err instanceof Error ? err : new Error(String(err));
-      setError(error);
-      throw error;
-    } finally {
-      setLoading(false);
+      if (callId === currentCall) {
+        setError(err instanceof Error ? err : new Error(String(err)));
+        setLoading(false);
+      }
+      throw err;
     }
   };
 
-  // 如果提供了依赖数组，监听依赖变化并自动执行
-  if (deps) {
-    createEffect(() => {
-      const currentDeps = deps();
+  createEffect(() => {
+    if (deps) {
+      deps();
       execute();
-    });
-  }
+    }
+  });
 
-  return {
-    loading,
-    data,
-    error,
-    execute,
-  };
+  return { loading, data, error, execute };
 } 

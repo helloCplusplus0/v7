@@ -1,5 +1,5 @@
 //! Hello FMOD Backend 库
-//! 
+//!
 //! 基于v6架构的现代化Rust后端库：函数注册 + 切片动态演进
 
 pub mod core;

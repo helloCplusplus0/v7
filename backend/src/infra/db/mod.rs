@@ -1,5 +1,5 @@
 //! 数据库抽象层
-//! 
+//!
 //! 基于v6设计理念的轻量级数据库抽象，支持SQLite和PostgreSQL
 
 use async_trait::async_trait;
@@ -7,11 +7,11 @@ use async_trait::async_trait;
 use serde_json::Value;
 use std::collections::HashMap;
 
-use crate::core::result::Result;
 use crate::core::error::AppError;
+use crate::core::result::Result;
 
-pub mod sqlite;
 pub mod migrations;
+pub mod sqlite;
 
 pub use sqlite::SqliteDatabase;
 
@@ -23,16 +23,16 @@ pub type DbRow = HashMap<String, Value>;
 pub trait Database: Send + Sync {
     /// 执行查询并返回结果
     async fn query(&self, sql: &str, params: &[&str]) -> Result<Vec<DbRow>>;
-    
+
     /// 执行查询并返回单个结果
     async fn query_one(&self, sql: &str, params: &[&str]) -> Result<DbRow>;
-    
+
     /// 执行查询并返回可选结果
     async fn query_opt(&self, sql: &str, params: &[&str]) -> Result<Option<DbRow>>;
-    
+
     /// 执行更新并返回影响的行数
     async fn execute(&self, sql: &str, params: &[&str]) -> Result<u64>;
-    
+
     /// 检查数据库健康状态
     async fn health_check(&self) -> Result<bool>;
 }
@@ -42,7 +42,7 @@ pub trait Database: Send + Sync {
 pub trait AdvancedDatabase: Database {
     /// 开始事务
     async fn begin_transaction(&self) -> Result<Box<dyn Transaction>>;
-    
+
     /// 批量执行多个查询
     async fn batch(&self, operations: Vec<BatchOperation>) -> Result<Vec<u64>>;
 }
@@ -52,13 +52,13 @@ pub trait AdvancedDatabase: Database {
 pub trait Transaction: Send + Sync {
     /// 在事务中执行查询
     async fn query(&self, sql: &str, params: &[&str]) -> Result<Vec<DbRow>>;
-    
+
     /// 在事务中执行更新
     async fn execute(&self, sql: &str, params: &[&str]) -> Result<u64>;
-    
+
     /// 提交事务
     async fn commit(self: Box<Self>) -> Result<()>;
-    
+
     /// 回滚事务
     async fn rollback(self: Box<Self>) -> Result<()>;
 }
@@ -73,22 +73,22 @@ pub struct BatchOperation {
 pub trait QueryBuilder {
     /// 选择字段
     fn select(self, fields: &[&str]) -> Self;
-    
+
     /// 从表查询
     fn from(self, table: &str) -> Self;
-    
+
     /// 添加WHERE条件
     fn where_clause(self, condition: &str, params: Vec<String>) -> Self;
-    
+
     /// 添加ORDER BY
     fn order_by(self, column: &str, descending: bool) -> Self;
-    
+
     /// 添加LIMIT
     fn limit(self, count: u64) -> Self;
-    
+
     /// 添加OFFSET
     fn offset(self, count: u64) -> Self;
-    
+
     /// 构建SQL
     fn build(self) -> (String, Vec<String>);
 }
@@ -104,7 +104,14 @@ pub struct SimpleQueryBuilder {
     offset_value: Option<u64>,
 }
 
+impl Default for SimpleQueryBuilder {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl SimpleQueryBuilder {
+    #[must_use]
     pub fn new() -> Self {
         Self {
             fields: vec!["*".to_string()],
@@ -120,59 +127,60 @@ impl SimpleQueryBuilder {
 
 impl QueryBuilder for SimpleQueryBuilder {
     fn select(mut self, fields: &[&str]) -> Self {
-        self.fields = fields.iter().map(|s| s.to_string()).collect();
+        self.fields = fields.iter().map(|s| (*s).to_string()).collect();
         self
     }
-    
+
     fn from(mut self, table: &str) -> Self {
         self.table = Some(table.to_string());
         self
     }
-    
+
     fn where_clause(mut self, condition: &str, params: Vec<String>) -> Self {
         self.where_conditions.push(condition.to_string());
         self.where_params.extend(params);
         self
     }
-    
+
     fn order_by(mut self, column: &str, descending: bool) -> Self {
         let direction = if descending { "DESC" } else { "ASC" };
-        self.order_by_clause = Some(format!("{} {}", column, direction));
+        self.order_by_clause = Some(format!("{column} {direction}"));
         self
     }
-    
+
     fn limit(mut self, count: u64) -> Self {
         self.limit_value = Some(count);
         self
     }
-    
+
     fn offset(mut self, count: u64) -> Self {
         self.offset_value = Some(count);
         self
     }
-    
+
     fn build(self) -> (String, Vec<String>) {
-        let mut sql = format!("SELECT {} FROM {}", 
-            self.fields.join(", "), 
+        let mut sql = format!(
+            "SELECT {} FROM {}",
+            self.fields.join(", "),
             self.table.expect("Table must be specified")
         );
-        
+
         if !self.where_conditions.is_empty() {
             sql.push_str(&format!(" WHERE {}", self.where_conditions.join(" AND ")));
         }
-        
+
         if let Some(order_by) = self.order_by_clause {
-            sql.push_str(&format!(" ORDER BY {}", order_by));
+            sql.push_str(&format!(" ORDER BY {order_by}"));
         }
-        
+
         if let Some(limit) = self.limit_value {
-            sql.push_str(&format!(" LIMIT {}", limit));
+            sql.push_str(&format!(" LIMIT {limit}"));
         }
-        
+
         if let Some(offset) = self.offset_value {
-            sql.push_str(&format!(" OFFSET {}", offset));
+            sql.push_str(&format!(" OFFSET {offset}"));
         }
-        
+
         (sql, self.where_params)
     }
 }
@@ -185,7 +193,14 @@ pub struct MemoryDatabase {
     persist_file: Option<std::path::PathBuf>,
 }
 
+impl Default for MemoryDatabase {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl MemoryDatabase {
+    #[must_use]
     pub fn new() -> Self {
         Self {
             data: std::sync::Arc::new(std::sync::RwLock::new(HashMap::new())),
@@ -200,12 +215,12 @@ impl MemoryDatabase {
             data: std::sync::Arc::new(std::sync::RwLock::new(HashMap::new())),
             persist_file,
         };
-        
+
         // 尝试从文件加载数据
         if let Err(e) = db.load_from_file() {
             tracing::warn!("无法从持久化文件加载数据: {}", e);
         }
-        
+
         db
     }
 
@@ -214,7 +229,9 @@ impl MemoryDatabase {
         if let Some(file_path) = &self.persist_file {
             if file_path.exists() {
                 let content = std::fs::read_to_string(file_path)?;
-                if let Ok(saved_data) = serde_json::from_str::<HashMap<String, Vec<DbRow>>>(&content) {
+                if let Ok(saved_data) =
+                    serde_json::from_str::<HashMap<String, Vec<DbRow>>>(&content)
+                {
                     let mut data = self.data.write().unwrap();
                     *data = saved_data;
                     tracing::info!("✅ 从持久化文件加载数据: {:?}", file_path);
@@ -229,12 +246,12 @@ impl MemoryDatabase {
         if let Some(file_path) = &self.persist_file {
             let data = self.data.read().unwrap();
             let content = serde_json::to_string_pretty(&*data)?;
-            
+
             // 确保目录存在
             if let Some(parent) = file_path.parent() {
                 std::fs::create_dir_all(parent)?;
             }
-            
+
             std::fs::write(file_path, content)?;
             tracing::debug!("💾 数据已保存到持久化文件: {:?}", file_path);
         }
@@ -246,7 +263,7 @@ impl MemoryDatabase {
         let mut data = self.data.write().unwrap();
         data.insert(table.to_string(), rows);
         drop(data);
-        
+
         // 自动保存到文件
         if let Err(e) = self.save_to_file() {
             tracing::warn!("保存持久化数据失败: {}", e);
@@ -259,24 +276,25 @@ impl Database for MemoryDatabase {
     async fn query(&self, sql: &str, params: &[&str]) -> Result<Vec<DbRow>> {
         // 简化的SQL解析，仅用于测试
         let sql_upper = sql.to_uppercase();
-        
+
         // 处理COUNT查询
         if sql_upper.contains("COUNT(") {
             let parts: Vec<&str> = sql.split_whitespace().collect();
             if let Some(from_idx) = parts.iter().position(|&x| x.eq_ignore_ascii_case("FROM")) {
                 if let Some(table_name) = parts.get(from_idx + 1) {
                     let data = self.data.read().unwrap();
-                    let count = data.get(*table_name)
-                        .map(|rows| rows.len())
-                        .unwrap_or(0);
-                    
+                    let count = data.get(*table_name).map_or(0, std::vec::Vec::len);
+
                     let mut result_row = HashMap::new();
-                    result_row.insert("count".to_string(), serde_json::Value::Number(serde_json::Number::from(count)));
+                    result_row.insert(
+                        "count".to_string(),
+                        serde_json::Value::Number(serde_json::Number::from(count)),
+                    );
                     return Ok(vec![result_row]);
                 }
             }
         }
-        
+
         // 处理普通SELECT查询
         if sql_upper.contains("SELECT") && sql_upper.contains("FROM") {
             let parts: Vec<&str> = sql.split_whitespace().collect();
@@ -284,81 +302,94 @@ impl Database for MemoryDatabase {
                 if let Some(table_name) = parts.get(from_idx + 1) {
                     let data = self.data.read().unwrap();
                     let mut rows = data.get(*table_name).cloned().unwrap_or_default();
-                    
+
                     // 🔧 处理WHERE条件
                     if sql_upper.contains("WHERE") {
-                        if let Some(where_idx) = parts.iter().position(|&x| x.eq_ignore_ascii_case("WHERE")) {
+                        if let Some(where_idx) =
+                            parts.iter().position(|&x| x.eq_ignore_ascii_case("WHERE"))
+                        {
                             // 检查WHERE name = ?
-                            if where_idx + 2 < parts.len() && 
-                               parts[where_idx + 1].eq_ignore_ascii_case("name") && 
-                               parts[where_idx + 2] == "=" {
-                                
-                                if params.len() >= 1 {
+                            if where_idx + 2 < parts.len()
+                                && parts[where_idx + 1].eq_ignore_ascii_case("name")
+                                && parts[where_idx + 2] == "="
+                            {
+                                if !params.is_empty() {
                                     let target_name = params[0];
                                     tracing::debug!("🔍 WHERE name = '{}' 查询", target_name);
-                                    
+
                                     rows.retain(|row| {
                                         if let Some(name_value) = row.get("name") {
                                             if let Some(name_str) = name_value.as_str() {
                                                 let matches = name_str == target_name;
-                                                tracing::debug!("🔍 比较: '{}' == '{}' -> {}", name_str, target_name, matches);
+                                                tracing::debug!(
+                                                    "🔍 比较: '{}' == '{}' -> {}",
+                                                    name_str,
+                                                    target_name,
+                                                    matches
+                                                );
                                                 return matches;
                                             }
                                         }
                                         false
                                     });
-                                    
+
                                     tracing::debug!("🔍 WHERE过滤后结果数量: {}", rows.len());
                                 }
                             }
                             // 检查WHERE id = ?
-                            else if where_idx + 2 < parts.len() && 
-                                    parts[where_idx + 1].eq_ignore_ascii_case("id") && 
-                                    parts[where_idx + 2] == "=" {
-                                
-                                if params.len() >= 1 {
-                                    let target_id = params[0];
-                                    tracing::debug!("🔍 WHERE id = '{}' 查询", target_id);
-                                    
-                                    rows.retain(|row| {
-                                        if let Some(id_value) = row.get("id") {
-                                            if let Some(id_str) = id_value.as_str() {
-                                                let matches = id_str == target_id;
-                                                tracing::debug!("🔍 比较: '{}' == '{}' -> {}", id_str, target_id, matches);
-                                                return matches;
-                                            }
+                            else if where_idx + 2 < parts.len()
+                                && parts[where_idx + 1].eq_ignore_ascii_case("id")
+                                && parts[where_idx + 2] == "="
+                                && !params.is_empty()
+                            {
+                                let target_id = params[0];
+                                tracing::debug!("🔍 WHERE id = '{}' 查询", target_id);
+
+                                rows.retain(|row| {
+                                    if let Some(id_value) = row.get("id") {
+                                        if let Some(id_str) = id_value.as_str() {
+                                            let matches = id_str == target_id;
+                                            tracing::debug!(
+                                                "🔍 比较: '{}' == '{}' -> {}",
+                                                id_str,
+                                                target_id,
+                                                matches
+                                            );
+                                            return matches;
                                         }
-                                        false
-                                    });
-                                    
-                                    tracing::debug!("🔍 WHERE过滤后结果数量: {}", rows.len());
-                                }
+                                    }
+                                    false
+                                });
+
+                                tracing::debug!("🔍 WHERE过滤后结果数量: {}", rows.len());
                             }
                         }
                     }
-                    
+
                     return Ok(rows);
                 }
             }
         }
-        
+
         Ok(Vec::new())
     }
-    
+
     async fn query_one(&self, sql: &str, params: &[&str]) -> Result<DbRow> {
         let results = self.query(sql, params).await?;
-        results.into_iter().next()
-            .ok_or_else(|| AppError::not_found("未找到记录"))
+        results
+            .into_iter()
+            .next()
+            .ok_or_else(|| Box::new(AppError::not_found("未找到记录")))
     }
-    
+
     async fn query_opt(&self, sql: &str, params: &[&str]) -> Result<Option<DbRow>> {
         let results = self.query(sql, params).await?;
         Ok(results.into_iter().next())
     }
-    
+
     async fn execute(&self, sql: &str, params: &[&str]) -> Result<u64> {
         let sql_upper = sql.to_uppercase();
-        
+
         // 处理CREATE TABLE
         if sql_upper.starts_with("CREATE TABLE") {
             let parts: Vec<&str> = sql.split_whitespace().collect();
@@ -371,44 +402,64 @@ impl Database for MemoryDatabase {
                 return Ok(0);
             }
         }
-        
+
         // 处理INSERT INTO items
         if sql_upper.contains("INSERT INTO ITEMS") {
             let mut data = self.data.write().unwrap();
-            let items_table = data.entry("items".to_string()).or_insert_with(Vec::new);
-            
+            let items_table = data.entry("items".to_string()).or_default();
+
             // 为了简化，直接使用参数创建一个新行
             if params.len() >= 6 {
                 let mut row = HashMap::new();
-                row.insert("id".to_string(), serde_json::Value::String(params[0].to_string()));
-                row.insert("name".to_string(), serde_json::Value::String(params[1].to_string()));
-                row.insert("description".to_string(), serde_json::Value::String(params[2].to_string()));
-                row.insert("value".to_string(), serde_json::Value::Number(
-                    serde_json::Number::from(params[3].parse::<i32>().unwrap_or(0))
-                ));
-                row.insert("created_at".to_string(), serde_json::Value::String(params[4].to_string()));
-                row.insert("updated_at".to_string(), serde_json::Value::String(params[5].to_string()));
-                
+                row.insert(
+                    "id".to_string(),
+                    serde_json::Value::String(params[0].to_string()),
+                );
+                row.insert(
+                    "name".to_string(),
+                    serde_json::Value::String(params[1].to_string()),
+                );
+                row.insert(
+                    "description".to_string(),
+                    serde_json::Value::String(params[2].to_string()),
+                );
+                row.insert(
+                    "value".to_string(),
+                    serde_json::Value::Number(serde_json::Number::from(
+                        params[3].parse::<i32>().unwrap_or(0),
+                    )),
+                );
+                row.insert(
+                    "created_at".to_string(),
+                    serde_json::Value::String(params[4].to_string()),
+                );
+                row.insert(
+                    "updated_at".to_string(),
+                    serde_json::Value::String(params[5].to_string()),
+                );
+
                 items_table.push(row);
                 return Ok(1);
             }
         }
-        
+
         // 🔧 处理DELETE FROM items WHERE id = ?
         if sql_upper.contains("DELETE FROM ITEMS") && sql_upper.contains("WHERE ID") {
             tracing::debug!("🔍 DELETE SQL匹配成功: {}", sql);
             tracing::debug!("🔍 参数: {:?}", params);
-            
-            if params.len() >= 1 {
+
+            if params.is_empty() {
+                tracing::warn!("⚠️ DELETE操作缺少参数");
+            } else {
                 let target_id = params[0];
                 tracing::debug!("🔍 目标删除ID: {}", target_id);
-                
+
                 let mut data = self.data.write().unwrap();
-                
+
                 if let Some(items_table) = data.get_mut("items") {
                     let initial_len = items_table.len();
                     tracing::debug!("🔍 删除前项目数量: {}", initial_len);
-                    
+
                     // 打印所有现有项目的ID
                     for (i, row) in items_table.iter().enumerate() {
                         if let Some(id_value) = row.get("id") {
@@ -417,84 +468,102 @@ impl Database for MemoryDatabase {
                             }
                         }
                     }
-                    
+
                     // 删除匹配的项目
                     items_table.retain(|row| {
                         if let Some(id_value) = row.get("id") {
                             if let Some(id_str) = id_value.as_str() {
                                 let should_keep = id_str != target_id;
-                                tracing::debug!("🔍 检查项目ID: {}, 是否保留: {}", id_str, should_keep);
+                                tracing::debug!(
+                                    "🔍 检查项目ID: {}, 是否保留: {}",
+                                    id_str,
+                                    should_keep
+                                );
                                 return should_keep;
                             }
                         }
                         true // 保留无法解析的行
                     });
-                    
+
                     let final_len = items_table.len();
                     let deleted_count = initial_len - final_len;
-                    
-                    tracing::info!("🗑️ 删除操作完成: 目标ID={}, 删除数量={}, 剩余数量={}", 
-                        target_id, deleted_count, final_len);
-                    
+
+                    tracing::info!(
+                        "🗑️ 删除操作完成: 目标ID={}, 删除数量={}, 剩余数量={}",
+                        target_id,
+                        deleted_count,
+                        final_len
+                    );
+
                     // 保存到持久化文件
                     drop(data);
                     if let Err(e) = self.save_to_file() {
                         tracing::warn!("保存持久化数据失败: {}", e);
                     }
-                    
+
                     return Ok(deleted_count as u64);
-                } else {
-                    tracing::warn!("⚠️ items表不存在");
                 }
-            } else {
-                tracing::warn!("⚠️ DELETE操作缺少参数");
+                tracing::warn!("⚠️ items表不存在");
             }
         }
-        
+
         // 🔧 处理UPDATE items SET ... WHERE id = ?
-        if sql_upper.contains("UPDATE ITEMS") && sql_upper.contains("WHERE ID") {
-            if params.len() >= 1 {
-                let target_id = params[params.len() - 1]; // 最后一个参数是ID
-                let mut data = self.data.write().unwrap();
-                
-                if let Some(items_table) = data.get_mut("items") {
-                    let mut updated_count = 0;
-                    
-                    for row in items_table.iter_mut() {
-                        if let Some(id_value) = row.get("id") {
-                            if let Some(id_str) = id_value.as_str() {
-                                if id_str == target_id {
-                                    // 简化：假设更新所有字段
-                                    if params.len() >= 5 {
-                                        row.insert("name".to_string(), serde_json::Value::String(params[0].to_string()));
-                                        row.insert("description".to_string(), serde_json::Value::String(params[1].to_string()));
-                                        row.insert("value".to_string(), serde_json::Value::Number(
-                                            serde_json::Number::from(params[2].parse::<i32>().unwrap_or(0))
-                                        ));
-                                        row.insert("updated_at".to_string(), serde_json::Value::String(params[3].to_string()));
-                                    }
-                                    updated_count += 1;
-                                    break;
+        if sql_upper.contains("UPDATE ITEMS")
+            && sql_upper.contains("WHERE ID")
+            && !params.is_empty()
+        {
+            let target_id = params[params.len() - 1]; // 最后一个参数是ID
+            let mut data = self.data.write().unwrap();
+
+            if let Some(items_table) = data.get_mut("items") {
+                let mut updated_count = 0;
+
+                for row in items_table.iter_mut() {
+                    if let Some(id_value) = row.get("id") {
+                        if let Some(id_str) = id_value.as_str() {
+                            if id_str == target_id {
+                                // 简化：假设更新所有字段
+                                if params.len() >= 5 {
+                                    row.insert(
+                                        "name".to_string(),
+                                        serde_json::Value::String(params[0].to_string()),
+                                    );
+                                    row.insert(
+                                        "description".to_string(),
+                                        serde_json::Value::String(params[1].to_string()),
+                                    );
+                                    row.insert(
+                                        "value".to_string(),
+                                        serde_json::Value::Number(serde_json::Number::from(
+                                            params[2].parse::<i32>().unwrap_or(0),
+                                        )),
+                                    );
+                                    row.insert(
+                                        "updated_at".to_string(),
+                                        serde_json::Value::String(params[3].to_string()),
+                                    );
                                 }
+                                updated_count += 1;
+                                break;
                             }
                         }
                     }
-                    
-                    // 保存到持久化文件
-                    drop(data);
-                    if let Err(e) = self.save_to_file() {
-                        tracing::warn!("保存持久化数据失败: {}", e);
-                    }
-                    
-                    return Ok(updated_count);
                 }
+
+                // 保存到持久化文件
+                drop(data);
+                if let Err(e) = self.save_to_file() {
+                    tracing::warn!("保存持久化数据失败: {}", e);
+                }
+
+                return Ok(updated_count);
             }
         }
-        
+
         // 简化实现，对于其他操作总是返回1行受影响
         Ok(1)
     }
-    
+
     async fn health_check(&self) -> Result<bool> {
         Ok(true)
     }
@@ -508,7 +577,7 @@ impl DatabaseFactory {
     pub fn create_from_config() -> Result<Box<dyn Database>> {
         let config = crate::infra::config::config();
         let database_url = config.database_url();
-        
+
         if database_url.starts_with("sqlite:") {
             // SQLite数据库
             if database_url == "sqlite::memory:" {
@@ -516,7 +585,9 @@ impl DatabaseFactory {
                 Ok(Box::new(SqliteDatabase::memory()?))
             } else {
                 // 提取文件路径
-                let file_path = database_url.strip_prefix("sqlite:").unwrap_or(&database_url);
+                let file_path = database_url
+                    .strip_prefix("sqlite:")
+                    .unwrap_or(&database_url);
                 tracing::info!("🗄️ 创建SQLite文件数据库: {}", file_path);
                 Ok(Box::new(SqliteDatabase::new(file_path)?))
             }
@@ -526,11 +597,14 @@ impl DatabaseFactory {
             tracing::warn!("⚠️ PostgreSQL支持尚未实现，使用内存数据库");
             Ok(Box::new(MemoryDatabase::new()))
         } else {
-            Err(AppError::validation(format!("不支持的数据库URL: {}", database_url)))
+            Err(Box::new(AppError::validation(format!(
+                "不支持的数据库URL: {database_url}"
+            ))))
         }
     }
 
     /// 创建内存数据库（用于测试）
+    #[must_use]
     pub fn create_memory() -> Box<dyn Database> {
         Box::new(MemoryDatabase::new())
     }
@@ -555,13 +629,13 @@ pub struct PoolStats {
 pub trait Migration {
     /// 获取迁移名称
     fn name(&self) -> &str;
-    
+
     /// 获取迁移版本
     fn version(&self) -> u64;
-    
+
     /// 执行迁移
     async fn up(&self, db: &dyn Database) -> Result<()>;
-    
+
     /// 回滚迁移
     async fn down(&self, db: &dyn Database) -> Result<()>;
 }
@@ -571,7 +645,14 @@ pub struct MigrationManager {
     migrations: Vec<Box<dyn Migration + Send + Sync>>,
 }
 
+impl Default for MigrationManager {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl MigrationManager {
+    #[must_use]
     pub fn new() -> Self {
         Self {
             migrations: Vec::new(),
@@ -599,6 +680,7 @@ impl MigrationManager {
 }
 
 /// 查询构建器便利函数
+#[must_use]
 pub fn query() -> SimpleQueryBuilder {
     SimpleQueryBuilder::new()
 }
@@ -607,10 +689,10 @@ pub fn query() -> SimpleQueryBuilder {
 #[macro_export]
 macro_rules! db_query {
     ($sql:expr) => {
-        crate::infra::di::inject::<Box<dyn crate::infra::db::Database>>().query($sql, &[]).await
+        $crate::infra::di::inject::<Box<dyn $crate::infra::db::Database>>().query($sql, &[]).await
     };
     ($sql:expr, $($param:expr),*) => {
-        crate::infra::di::inject::<Box<dyn crate::infra::db::Database>>().query($sql, &[$(stringify!($param)),*]).await
+        $crate::infra::di::inject::<Box<dyn $crate::infra::db::Database>>().query($sql, &[$(stringify!($param)),*]).await
     };
 }
 
@@ -628,6 +710,7 @@ pub struct SafeQuery {
 
 impl SafeQuery {
     /// 创建新查询
+    #[must_use]
     pub fn new(table: &str) -> Self {
         Self {
             table: table.to_string(),
@@ -639,25 +722,28 @@ impl SafeQuery {
             params: Vec::new(),
         }
     }
-    
+
     /// 选择列（编译时验证）
+    #[must_use]
     pub fn select<const N: usize>(mut self, columns: [&str; N]) -> Self {
-        self.columns = columns.iter().map(|s| s.to_string()).collect();
+        self.columns = columns.iter().map(|s| (*s).to_string()).collect();
         self
     }
-    
+
     /// 添加WHERE条件（参数化）
+    #[must_use]
     pub fn where_eq(mut self, column: &str, value: &str) -> Self {
-        self.where_clause = Some(format!("{} = ?", column));
+        self.where_clause = Some(format!("{column} = ?"));
         self.params.push(value.to_string());
         self
     }
-    
+
     /// 类型安全的排序（白名单验证）
+    #[must_use]
     pub fn order_by_safe(mut self, column: &str, desc: bool) -> Self {
         // 编译时验证的安全列名
         const ALLOWED_COLUMNS: &[&str] = &["id", "name", "value", "created_at", "updated_at"];
-        
+
         if ALLOWED_COLUMNS.contains(&column) {
             self.order_by = Some((column.to_string(), desc));
         } else {
@@ -666,42 +752,41 @@ impl SafeQuery {
         }
         self
     }
-    
+
     /// 分页（参数化）
+    #[must_use]
     pub fn paginate(mut self, limit: u32, offset: u32) -> Self {
         self.limit = Some(limit);
         self.offset = Some(offset);
         self
     }
-    
+
     /// 构建SQL和参数（类型安全）
+    #[must_use]
     pub fn build(self) -> (String, Vec<String>) {
-        let mut sql = format!("SELECT {} FROM {}", 
-            self.columns.join(", "), 
-            self.table
-        );
-        
+        let mut sql = format!("SELECT {} FROM {}", self.columns.join(", "), self.table);
+
         let mut params = self.params;
-        
+
         if let Some(where_clause) = self.where_clause {
-            sql.push_str(&format!(" WHERE {}", where_clause));
+            sql.push_str(&format!(" WHERE {where_clause}"));
         }
-        
+
         if let Some((column, desc)) = self.order_by {
             let order = if desc { "DESC" } else { "ASC" };
-            sql.push_str(&format!(" ORDER BY {} {}", column, order));
+            sql.push_str(&format!(" ORDER BY {column} {order}"));
         }
-        
+
         if let Some(limit) = self.limit {
             sql.push_str(" LIMIT ?");
             params.push(limit.to_string());
-            
+
             if let Some(offset) = self.offset {
                 sql.push_str(" OFFSET ?");
                 params.push(offset.to_string());
             }
         }
-        
+
         (sql, params)
     }
-} 
+}

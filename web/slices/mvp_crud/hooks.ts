@@ -5,7 +5,7 @@ import { createSignal, createMemo, batch } from 'solid-js';
 import { createStore, produce } from 'solid-js/store';
 import { crudApi } from './api';
 import type {
-  Item,
+  Item as _Item,
   CreateItemRequest,
   UpdateItemRequest,
   ListItemsQuery,

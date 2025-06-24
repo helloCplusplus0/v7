@@ -3,7 +3,6 @@
 
 import { BaseApiClient } from '../../shared/api/base';
 import type {
-  Item,
   CreateItemRequest,
   UpdateItemRequest,
   ListItemsQuery,

@@ -1,9 +1,9 @@
-use std::collections::HashMap;
-use std::sync::{Arc, Mutex};
-use serde::{Serialize, Deserialize};
-use serde_json::Value;
 use axum::http::{Method, StatusCode};
 use chrono::{DateTime, Utc};
+use serde::{Deserialize, Serialize};
+use serde_json::Value;
+use std::collections::HashMap;
+use std::sync::{Arc, Mutex};
 
 /// 运行时API信息收集器 - 100%准确反映实际API
 pub struct RuntimeApiCollector {
@@ -53,8 +53,15 @@ pub struct ResponseExample {
     pub timestamp: DateTime<Utc>,
 }
 
+impl Default for RuntimeApiCollector {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl RuntimeApiCollector {
     /// 创建新的收集器
+    #[must_use]
     pub fn new() -> Self {
         Self {
             endpoints: Arc::new(Mutex::new(HashMap::new())),
@@ -64,6 +71,7 @@ impl RuntimeApiCollector {
     }
 
     /// 记录API调用
+    #[allow(clippy::too_many_arguments)]
     pub fn record_call(
         &self,
         method: &Method,
@@ -74,12 +82,13 @@ impl RuntimeApiCollector {
         response_headers: &HashMap<String, String>,
         response_time_ms: u64,
     ) {
-        let endpoint_id = format!("{} {}", method, path);
+        let endpoint_id = format!("{method} {path}");
         let now = Utc::now();
-        
+
         let mut endpoints = self.endpoints.lock().unwrap();
-        let endpoint = endpoints.entry(endpoint_id.clone()).or_insert_with(|| {
-            RuntimeEndpoint {
+        let endpoint = endpoints
+            .entry(endpoint_id.clone())
+            .or_insert_with(|| RuntimeEndpoint {
                 id: endpoint_id.clone(),
                 method: method.to_string(),
                 path: path.to_string(),
@@ -90,14 +99,13 @@ impl RuntimeApiCollector {
                 status_codes: Vec::new(),
                 response_times: Vec::new(),
                 last_called: now,
-            }
-        });
+            });
 
         // 更新统计信息
         endpoint.call_count += 1;
         endpoint.last_called = now;
         endpoint.response_times.push(response_time_ms);
-        
+
         if !endpoint.status_codes.contains(&response_status.as_u16()) {
             endpoint.status_codes.push(response_status.as_u16());
         }
@@ -132,6 +140,7 @@ impl RuntimeApiCollector {
     }
 
     /// 生成100%准确的OpenAPI规范
+    #[must_use]
     pub fn generate_openapi(&self) -> Value {
         let endpoints = self.endpoints.lock().unwrap();
         let mut paths = serde_json::Map::new();
@@ -163,7 +172,7 @@ impl RuntimeApiCollector {
         })
     }
 
-    /// 将端点转换为OpenAPI路径项
+    /// `将端点转换为OpenAPI路径项`
     fn endpoint_to_openapi_path(
         &self,
         endpoint: &RuntimeEndpoint,
@@ -176,44 +185,50 @@ impl RuntimeApiCollector {
             let status_key = example.status_code.to_string();
             if !responses.contains_key(&status_key) {
                 let schema = self.generate_schema_from_example(&example.body, schemas);
-                responses.insert(status_key, serde_json::json!({
-                    "description": "成功响应",
-                    "content": {
-                        "application/json": {
-                            "schema": schema,
-                            "example": example.body
+                responses.insert(
+                    status_key,
+                    serde_json::json!({
+                        "description": "成功响应",
+                        "content": {
+                            "application/json": {
+                                "schema": schema,
+                                "example": example.body
+                            }
                         }
-                    }
-                }));
+                    }),
+                );
             }
         }
 
         for example in &endpoint.error_examples {
             let status_key = example.status_code.to_string();
             if !responses.contains_key(&status_key) {
-                responses.insert(status_key, serde_json::json!({
-                    "description": "错误响应",
-                    "content": {
-                        "application/json": {
-                            "schema": {
-                                "type": "object",
-                                "properties": {
-                                    "error": {"type": "string"},
-                                    "message": {"type": "string"}
-                                }
-                            },
-                            "example": example.body
+                responses.insert(
+                    status_key,
+                    serde_json::json!({
+                        "description": "错误响应",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "type": "object",
+                                    "properties": {
+                                        "error": {"type": "string"},
+                                        "message": {"type": "string"}
+                                    }
+                                },
+                                "example": example.body
+                            }
                         }
-                    }
-                }));
+                    }),
+                );
             }
         }
 
         let mut operation = serde_json::json!({
             "responses": responses,
             "summary": format!("{} {}", endpoint.method, endpoint.path),
-            "description": format!("调用次数: {}, 平均响应时间: {}ms", 
-                endpoint.call_count, 
+            "description": format!("调用次数: {}, 平均响应时间: {}ms",
+                endpoint.call_count,
                 if endpoint.response_times.is_empty() { 0 } else {
                     endpoint.response_times.iter().sum::<u64>() / endpoint.response_times.len() as u64
                 }
@@ -222,7 +237,8 @@ impl RuntimeApiCollector {
 
         // 添加请求体规范（如果有）
         if !endpoint.request_examples.is_empty() {
-            let request_schema = self.generate_schema_from_example(&endpoint.request_examples[0], schemas);
+            let request_schema =
+                self.generate_schema_from_example(&endpoint.request_examples[0], schemas);
             operation["requestBody"] = serde_json::json!({
                 "required": true,
                 "content": {
@@ -240,6 +256,7 @@ impl RuntimeApiCollector {
     }
 
     /// 从示例数据生成JSON Schema
+    #[allow(clippy::only_used_in_recursion)]
     fn generate_schema_from_example(
         &self,
         example: &Value,
@@ -251,7 +268,10 @@ impl RuntimeApiCollector {
                 let mut required = Vec::new();
 
                 for (key, value) in obj {
-                    properties.insert(key.clone(), self.generate_schema_from_example(value, _schemas));
+                    properties.insert(
+                        key.clone(),
+                        self.generate_schema_from_example(value, _schemas),
+                    );
                     required.push(key.clone());
                 }
 
@@ -285,40 +305,51 @@ impl RuntimeApiCollector {
     }
 
     /// 生成统计报告
+    #[must_use]
     pub fn generate_report(&self) -> String {
         let endpoints = self.endpoints.lock().unwrap();
         let mut report = String::new();
-        
+
         report.push_str("# 🎯 运行时API收集报告\n\n");
-        report.push_str(&format!("**收集时间**: {} 至今\n", self.start_time.format("%Y-%m-%d %H:%M:%S")));
+        report.push_str(&format!(
+            "**收集时间**: {} 至今\n",
+            self.start_time.format("%Y-%m-%d %H:%M:%S")
+        ));
         report.push_str(&format!("**总端点数**: {}\n", endpoints.len()));
-        
+
         let total_calls: u64 = endpoints.values().map(|e| e.call_count).sum();
-        report.push_str(&format!("**总调用次数**: {}\n\n", total_calls));
+        report.push_str(&format!("**总调用次数**: {total_calls}\n\n"));
 
         for endpoint in endpoints.values() {
             report.push_str(&format!("## {} {}\n", endpoint.method, endpoint.path));
             report.push_str(&format!("- **调用次数**: {}\n", endpoint.call_count));
             report.push_str(&format!("- **状态码**: {:?}\n", endpoint.status_codes));
-            
+
             if !endpoint.response_times.is_empty() {
-                let avg_time = endpoint.response_times.iter().sum::<u64>() / endpoint.response_times.len() as u64;
+                let avg_time = endpoint.response_times.iter().sum::<u64>()
+                    / endpoint.response_times.len() as u64;
                 let min_time = endpoint.response_times.iter().min().unwrap();
                 let max_time = endpoint.response_times.iter().max().unwrap();
-                report.push_str(&format!("- **响应时间**: 平均{}ms, 最小{}ms, 最大{}ms\n", avg_time, min_time, max_time));
+                report.push_str(&format!(
+                    "- **响应时间**: 平均{avg_time}ms, 最小{min_time}ms, 最大{max_time}ms\n"
+                ));
             }
-            
-            report.push_str(&format!("- **最后调用**: {}\n\n", endpoint.last_called.format("%Y-%m-%d %H:%M:%S")));
+
+            report.push_str(&format!(
+                "- **最后调用**: {}\n\n",
+                endpoint.last_called.format("%Y-%m-%d %H:%M:%S")
+            ));
         }
 
         report
     }
 
     /// 导出收集到的数据
+    #[must_use]
     pub fn export_data(&self) -> serde_json::Value {
         let endpoints = self.endpoints.lock().unwrap();
         let type_examples = self.type_examples.lock().unwrap();
-        
+
         serde_json::json!({
             "collection_start": self.start_time,
             "endpoints": *endpoints,
@@ -337,7 +368,7 @@ static RUNTIME_COLLECTOR: std::sync::OnceLock<RuntimeApiCollector> = std::sync::
 
 /// 获取全局收集器
 pub fn runtime_collector() -> &'static RuntimeApiCollector {
-    RUNTIME_COLLECTOR.get_or_init(|| RuntimeApiCollector::new())
+    RUNTIME_COLLECTOR.get_or_init(RuntimeApiCollector::new)
 }
 
 /// 中间件：自动记录API调用
@@ -346,19 +377,19 @@ pub async fn api_collection_middleware(
     next: axum::middleware::Next,
 ) -> axum::response::Response {
     use std::time::Instant;
-    
+
     let start_time = Instant::now();
     let method = request.method().clone();
     let path = request.uri().path().to_string();
-    
+
     // 提取请求体（如果有）
     // 注意：这里需要小心处理请求体的消费
-    
+
     let response = next.run(request).await;
-    
-    let response_time = start_time.elapsed().as_millis() as u64;
+
+    let response_time = u64::try_from(start_time.elapsed().as_millis()).unwrap_or(0);
     let status = response.status();
-    
+
     // 记录API调用
     runtime_collector().record_call(
         &method,
@@ -369,6 +400,6 @@ pub async fn api_collection_middleware(
         &HashMap::new(),
         response_time,
     );
-    
+
     response
-} 
+}

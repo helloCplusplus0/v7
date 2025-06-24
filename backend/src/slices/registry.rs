@@ -1,5 +1,5 @@
 //! 功能切片注册表
-//! 
+//!
 //! 负责管理所有功能切片的注册、路由配置和服务初始化
 
 use axum::Router;
@@ -36,18 +36,14 @@ impl SliceRegistry {
     /// 获取所有已启用的切片
     #[must_use]
     pub fn enabled_slices(&self) -> Vec<&SliceConfig> {
-        self.slices
-            .values()
-            .filter(|slice| slice.enabled)
-            .collect()
+        self.slices.values().filter(|slice| slice.enabled).collect()
     }
 
     /// 构建应用路由
-    #[must_use]
     pub fn build_routes(&self) -> Router {
         // 这里将来会添加各个切片的路由
         // 例如：app = app.nest("/api/v1/hello", hello_slice_routes());
-        
+
         Router::new()
     }
 
@@ -81,6 +77,6 @@ pub fn initialize_slice_registry() -> SliceRegistry {
     //     enabled: true,
     //     routes: vec!["/hello".to_string(), "/fmod".to_string()],
     // });
-    
+
     SliceRegistry::new()
 }

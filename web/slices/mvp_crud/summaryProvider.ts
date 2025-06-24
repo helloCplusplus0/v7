@@ -17,7 +17,6 @@ export class MvpCrudSummaryProvider implements SliceSummaryProvider {
       
       // BaseApiClient 现在自动解包响应，直接使用 response
       const totalItems = response.total || 0; // 使用 total 字段
-      const itemsCount = response.items?.length || 0; // 当前页的项目数量
       
       // 计算状态
       const status = totalItems > 0 ? 'healthy' : 'warning';

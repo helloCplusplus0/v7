@@ -90,5 +90,5 @@ export function createViteConfig(options: ViteConfigOptions): UserConfig {
 }
 
 export function loadViteEnv(mode: string) {
-  return loadEnv(mode, process.cwd(), '');
+  return loadEnv(mode, '.', '');
 }

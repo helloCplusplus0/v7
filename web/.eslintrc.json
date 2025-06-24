@@ -6,8 +6,9 @@
   },
   "extends": [
     "eslint:recommended",
-    "@typescript-eslint/recommended",
-    "plugin:solid/typescript"
+    "@eslint/js/recommended",
+    "plugin:@typescript-eslint/recommended",
+    "prettier"
   ],
   "parser": "@typescript-eslint/parser",
   "parserOptions": {
@@ -16,37 +17,52 @@
     "project": "./tsconfig.json"
   },
   "plugins": [
-    "@typescript-eslint",
-    "solid"
+    "@typescript-eslint"
   ],
   "rules": {
-    // TypeScript 规则
-    "@typescript-eslint/no-unused-vars": ["error", { "argsIgnorePattern": "^_" }],
+    // TypeScript 规则 - 适应CI/CD环境
+    "@typescript-eslint/no-unused-vars": ["error", { 
+      "argsIgnorePattern": "^_",
+      "varsIgnorePattern": "^_",
+      "ignoreRestSiblings": true
+    }],
     "@typescript-eslint/explicit-function-return-type": "off",
     "@typescript-eslint/explicit-module-boundary-types": "off",
     "@typescript-eslint/no-explicit-any": "warn",
-    "@typescript-eslint/prefer-const": "error",
-    "@typescript-eslint/no-non-null-assertion": "warn",
+    "@typescript-eslint/no-non-null-assertion": "off",
+    "@typescript-eslint/no-inferrable-types": "off",
+    "@typescript-eslint/ban-types": "off",
+    "@typescript-eslint/prefer-as-const": "error",
     
-    // SolidJS 规则
-    "solid/reactivity": "warn",
-    "solid/no-destructure": "warn",
-    "solid/prefer-for": "warn",
-    
-    // 通用规则
-    "no-console": "warn",
+    // 通用规则 - 统一CI/CD标准
+    "no-console": "off",
     "no-debugger": "warn",
     "prefer-const": "error",
     "no-var": "error",
-    "object-shorthand": "error",
-    "prefer-template": "error"
+    "object-shorthand": "off",
+    "prefer-template": "off",
+    "no-useless-catch": "off",
+    "no-prototype-builtins": "off",
+    "no-case-declarations": "off",
+    "no-unused-vars": "off" // 使用TypeScript版本替代
   },
+  "overrides": [
+    {
+      "files": ["tests/**/*.ts", "tests/**/*.tsx", "**/*.test.ts", "**/*.test.tsx"],
+      "rules": {
+        "@typescript-eslint/no-unused-vars": "off",
+        "no-unused-vars": "off"
+      }
+    }
+  ],
   "ignorePatterns": [
     "dist",
     "node_modules",
     "coverage",
     "*.config.js",
     "*.config.ts",
-    "public"
+    "public",
+    ".eslintrc.cjs",
+    "types/global.d.ts"
   ]
 } 

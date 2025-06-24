@@ -1,12 +1,12 @@
 //! 监控与日志模块
-//! 
+//!
 //! 基于v6设计理念的轻量级监控与日志，支持分布式追踪
 
+use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use std::sync::{Arc, Mutex};
 use std::time::{Duration, Instant, SystemTime, UNIX_EPOCH};
 use uuid::Uuid;
-use serde::{Deserialize, Serialize};
 
 // use crate::core::result::Result; // 暂时注释，后续实现时使用
 // use crate::core::error::AppError; // 暂时注释，后续实现时使用
@@ -23,7 +23,8 @@ pub enum LogLevel {
 
 impl LogLevel {
     /// 从字符串解析日志级别
-    pub fn from_str(s: &str) -> Option<Self> {
+    #[must_use]
+    pub fn parse_from_str(s: &str) -> Option<Self> {
         match s.to_lowercase().as_str() {
             "trace" => Some(Self::Trace),
             "debug" => Some(Self::Debug),
@@ -35,6 +36,7 @@ impl LogLevel {
     }
 
     /// 转换为字符串
+    #[must_use]
     pub fn as_str(&self) -> &'static str {
         match self {
             Self::Trace => "trace",
@@ -78,10 +80,13 @@ impl LogEntry {
     #[must_use]
     pub fn new(level: LogLevel, message: String) -> Self {
         Self {
-            timestamp: SystemTime::now()
-                .duration_since(UNIX_EPOCH)
-                .unwrap()
-                .as_millis() as i64,
+            timestamp: i64::try_from(
+                SystemTime::now()
+                    .duration_since(UNIX_EPOCH)
+                    .unwrap()
+                    .as_millis(),
+            )
+            .unwrap_or(0),
             level,
             message,
             trace_id: None,
@@ -152,25 +157,25 @@ impl LogEntry {
 pub trait Logger: Send + Sync {
     /// 记录日志
     fn log(&self, entry: LogEntry);
-    
+
     /// 记录追踪日志
     fn trace(&self, message: &str);
-    
+
     /// 记录调试日志
     fn debug(&self, message: &str);
-    
+
     /// 记录信息日志
     fn info(&self, message: &str);
-    
+
     /// 记录警告日志
     fn warn(&self, message: &str);
-    
+
     /// 记录错误日志
     fn error(&self, message: &str);
-    
+
     /// 设置最小日志级别
     fn set_level(&mut self, level: LogLevel);
-    
+
     /// 检查是否应该记录指定级别的日志
     fn should_log(&self, level: LogLevel) -> bool;
 }
@@ -192,53 +197,58 @@ impl Logger for ConsoleLogger {
         if entry.level >= self.min_level {
             // 简化的控制台输出
             let timestamp = chrono::DateTime::from_timestamp_millis(entry.timestamp)
-                .unwrap_or_else(|| chrono::Utc::now())
+                .unwrap_or_else(chrono::Utc::now)
                 .format("%Y-%m-%d %H:%M:%S");
-            
-            let mut output = format!("[{}] [{}] {}", timestamp, entry.level.as_str().to_uppercase(), entry.message);
-            
+
+            let mut output = format!(
+                "[{}] [{}] {}",
+                timestamp,
+                entry.level.as_str().to_uppercase(),
+                entry.message
+            );
+
             // 添加追踪信息
             if let Some(trace_id) = &entry.trace_id {
-                output.push_str(&format!(" [trace_id={}]", trace_id));
+                output.push_str(&format!(" [trace_id={trace_id}]"));
             }
-            
+
             if let Some(correlation_id) = &entry.correlation_id {
-                output.push_str(&format!(" [correlation_id={}]", correlation_id));
+                output.push_str(&format!(" [correlation_id={correlation_id}]"));
             }
-            
+
             // 添加位置信息
             if let (Some(file), Some(line)) = (&entry.file, entry.line) {
-                output.push_str(&format!(" [{}:{}]", file, line));
+                output.push_str(&format!(" [{file}:{line}]"));
             }
-            
-            println!("{}", output);
+
+            println!("{output}");
         }
     }
-    
+
     fn trace(&self, message: &str) {
         self.log(LogEntry::new(LogLevel::Trace, message.to_string()));
     }
-    
+
     fn debug(&self, message: &str) {
         self.log(LogEntry::new(LogLevel::Debug, message.to_string()));
     }
-    
+
     fn info(&self, message: &str) {
         self.log(LogEntry::new(LogLevel::Info, message.to_string()));
     }
-    
+
     fn warn(&self, message: &str) {
         self.log(LogEntry::new(LogLevel::Warn, message.to_string()));
     }
-    
+
     fn error(&self, message: &str) {
         self.log(LogEntry::new(LogLevel::Error, message.to_string()));
     }
-    
+
     fn set_level(&mut self, level: LogLevel) {
         self.min_level = level;
     }
-    
+
     fn should_log(&self, level: LogLevel) -> bool {
         level >= self.min_level
     }
@@ -282,10 +292,13 @@ impl Metric {
             name: name.to_string(),
             metric_type: MetricType::Counter,
             value,
-            timestamp: SystemTime::now()
-                .duration_since(UNIX_EPOCH)
-                .unwrap()
-                .as_millis() as i64,
+            timestamp: i64::try_from(
+                SystemTime::now()
+                    .duration_since(UNIX_EPOCH)
+                    .unwrap()
+                    .as_millis(),
+            )
+            .unwrap_or(0),
             labels: HashMap::new(),
             description: None,
         }
@@ -298,10 +311,13 @@ impl Metric {
             name: name.to_string(),
             metric_type: MetricType::Gauge,
             value,
-            timestamp: SystemTime::now()
-                .duration_since(UNIX_EPOCH)
-                .unwrap()
-                .as_millis() as i64,
+            timestamp: i64::try_from(
+                SystemTime::now()
+                    .duration_since(UNIX_EPOCH)
+                    .unwrap()
+                    .as_millis(),
+            )
+            .unwrap_or(0),
             labels: HashMap::new(),
             description: None,
         }
@@ -326,19 +342,19 @@ impl Metric {
 pub trait MetricsCollector: Send + Sync {
     /// 记录指标
     fn record(&self, metric: Metric);
-    
+
     /// 增加计数器
     fn increment_counter(&self, name: &str, value: f64);
-    
+
     /// 设置仪表值
     fn set_gauge(&self, name: &str, value: f64);
-    
+
     /// 记录计时器
     fn record_timer(&self, name: &str, duration: Duration);
-    
+
     /// 获取所有指标
     fn get_metrics(&self) -> Vec<Metric>;
-    
+
     /// 清除指标
     fn clear(&self);
 }
@@ -368,35 +384,38 @@ impl MetricsCollector for MemoryMetricsCollector {
         let mut metrics = self.metrics.lock().unwrap();
         metrics.push(metric);
     }
-    
+
     fn increment_counter(&self, name: &str, value: f64) {
         self.record(Metric::counter(name, value));
     }
-    
+
     fn set_gauge(&self, name: &str, value: f64) {
         self.record(Metric::gauge(name, value));
     }
-    
+
     fn record_timer(&self, name: &str, duration: Duration) {
         let value = duration.as_secs_f64();
         self.record(Metric {
             name: name.to_string(),
             metric_type: MetricType::Timer,
             value,
-            timestamp: SystemTime::now()
-                .duration_since(UNIX_EPOCH)
-                .unwrap()
-                .as_millis() as i64,
+            timestamp: i64::try_from(
+                SystemTime::now()
+                    .duration_since(UNIX_EPOCH)
+                    .unwrap()
+                    .as_millis(),
+            )
+            .unwrap_or(0),
             labels: HashMap::new(),
             description: None,
         });
     }
-    
+
     fn get_metrics(&self) -> Vec<Metric> {
         let metrics = self.metrics.lock().unwrap();
         metrics.clone()
     }
-    
+
     fn clear(&self) {
         let mut metrics = self.metrics.lock().unwrap();
         metrics.clear();
@@ -453,9 +472,12 @@ impl TraceContext {
     #[must_use]
     pub fn from_headers(headers: &HashMap<String, String>) -> Option<Self> {
         let trace_id = headers.get("x-trace-id")?.clone();
-        let span_id = headers.get("x-span-id").cloned().unwrap_or_else(|| Uuid::new_v4().to_string());
+        let span_id = headers
+            .get("x-span-id")
+            .cloned()
+            .unwrap_or_else(|| Uuid::new_v4().to_string());
         let parent_span_id = headers.get("x-parent-span-id").cloned();
-        
+
         Some(Self {
             trace_id,
             span_id,
@@ -497,31 +519,33 @@ impl Timer {
     /// 停止计时并记录
     pub fn stop(self) -> Duration {
         let duration = self.start.elapsed();
-        
+
         // 记录到指标收集器
         if let Ok(collector_guard) = GLOBAL_METRICS.try_lock() {
             if let Some(ref collector) = *collector_guard {
                 collector.record_timer(&self.name, duration);
             }
         }
-        
+
         duration
     }
 }
 
 /// 全局日志记录器
-static GLOBAL_LOGGER: std::sync::LazyLock<Arc<Mutex<Box<dyn Logger>>>> = 
+static GLOBAL_LOGGER: std::sync::LazyLock<Arc<Mutex<Box<dyn Logger>>>> =
     std::sync::LazyLock::new(|| {
         let config = crate::infra::config::config();
-        let level = LogLevel::from_str(&config.log_level()).unwrap_or(LogLevel::Info);
+        let level = LogLevel::parse_from_str(&config.log_level()).unwrap_or(LogLevel::Info);
         Arc::new(Mutex::new(Box::new(ConsoleLogger::new(level))))
     });
 
+/// 指标收集器类型别名
+type GlobalMetricsType = Arc<Mutex<Option<Box<dyn MetricsCollector>>>>;
+
 /// 全局指标收集器
-static GLOBAL_METRICS: std::sync::LazyLock<Arc<Mutex<Option<Box<dyn MetricsCollector>>>>> = 
-    std::sync::LazyLock::new(|| {
-        Arc::new(Mutex::new(Some(Box::new(MemoryMetricsCollector::new()))))
-    });
+static GLOBAL_METRICS: std::sync::LazyLock<GlobalMetricsType> = std::sync::LazyLock::new(|| {
+    Arc::new(Mutex::new(Some(Box::new(MemoryMetricsCollector::new()))))
+});
 
 /// 获取全局日志记录器
 pub fn logger() -> Arc<Mutex<Box<dyn Logger>>> {
@@ -529,7 +553,7 @@ pub fn logger() -> Arc<Mutex<Box<dyn Logger>>> {
 }
 
 /// 获取全局指标收集器
-pub fn metrics() -> Arc<Mutex<Option<Box<dyn MetricsCollector>>>> {
+pub fn metrics() -> GlobalMetricsType {
     GLOBAL_METRICS.clone()
 }
 
@@ -537,14 +561,14 @@ pub fn metrics() -> Arc<Mutex<Option<Box<dyn MetricsCollector>>>> {
 #[macro_export]
 macro_rules! log_trace {
     ($msg:expr) => {
-        if let Ok(logger) = crate::infra::monitoring::logger().try_lock() {
+        if let Ok(logger) = $crate::infra::monitoring::logger().try_lock() {
             logger.trace($msg);
         }
     };
     ($msg:expr, $($field:expr),*) => {
-        if let Ok(logger) = crate::infra::monitoring::logger().try_lock() {
-            let mut entry = crate::infra::monitoring::LogEntry::new(
-                crate::infra::monitoring::LogLevel::Trace,
+        if let Ok(logger) = $crate::infra::monitoring::logger().try_lock() {
+            let mut entry = $crate::infra::monitoring::LogEntry::new(
+                $crate::infra::monitoring::LogLevel::Trace,
                 $msg.to_string()
             );
             $(entry = entry.with_field(stringify!($field), $field);)*
@@ -556,16 +580,17 @@ macro_rules! log_trace {
 #[macro_export]
 macro_rules! log_info {
     ($msg:expr) => {
-        if let Ok(logger) = crate::infra::monitoring::logger().try_lock() {
+        if let Ok(logger) = $crate::infra::monitoring::logger().try_lock() {
             logger.info($msg);
         }
     };
     ($msg:expr, trace_id = $trace_id:expr) => {
-        if let Ok(logger) = crate::infra::monitoring::logger().try_lock() {
-            let entry = crate::infra::monitoring::LogEntry::new(
-                crate::infra::monitoring::LogLevel::Info,
-                $msg.to_string()
-            ).with_trace_id($trace_id);
+        if let Ok(logger) = $crate::infra::monitoring::logger().try_lock() {
+            let entry = $crate::infra::monitoring::LogEntry::new(
+                $crate::infra::monitoring::LogLevel::Info,
+                $msg.to_string(),
+            )
+            .with_trace_id($trace_id);
             logger.log(entry);
         }
     };
@@ -574,16 +599,17 @@ macro_rules! log_info {
 #[macro_export]
 macro_rules! log_error {
     ($msg:expr) => {
-        if let Ok(logger) = crate::infra::monitoring::logger().try_lock() {
+        if let Ok(logger) = $crate::infra::monitoring::logger().try_lock() {
             logger.error($msg);
         }
     };
     ($msg:expr, trace_id = $trace_id:expr) => {
-        if let Ok(logger) = crate::infra::monitoring::logger().try_lock() {
-            let entry = crate::infra::monitoring::LogEntry::new(
-                crate::infra::monitoring::LogLevel::Error,
-                $msg.to_string()
-            ).with_trace_id($trace_id);
+        if let Ok(logger) = $crate::infra::monitoring::logger().try_lock() {
+            let entry = $crate::infra::monitoring::LogEntry::new(
+                $crate::infra::monitoring::LogLevel::Error,
+                $msg.to_string(),
+            )
+            .with_trace_id($trace_id);
             logger.log(entry);
         }
     };
@@ -593,7 +619,7 @@ macro_rules! log_error {
 #[macro_export]
 macro_rules! metric_counter {
     ($name:expr, $value:expr) => {
-        if let Ok(metrics) = crate::infra::monitoring::metrics().try_lock() {
+        if let Ok(metrics) = $crate::infra::monitoring::metrics().try_lock() {
             if let Some(ref collector) = *metrics {
                 collector.increment_counter($name, $value);
             }
@@ -604,7 +630,7 @@ macro_rules! metric_counter {
 #[macro_export]
 macro_rules! metric_gauge {
     ($name:expr, $value:expr) => {
-        if let Ok(metrics) = crate::infra::monitoring::metrics().try_lock() {
+        if let Ok(metrics) = $crate::infra::monitoring::metrics().try_lock() {
             if let Some(ref collector) = *metrics {
                 collector.set_gauge($name, $value);
             }
@@ -616,9 +642,9 @@ macro_rules! metric_gauge {
 #[macro_export]
 macro_rules! time_block {
     ($name:expr, $block:block) => {{
-        let timer = crate::infra::monitoring::Timer::start($name);
+        let timer = $crate::infra::monitoring::Timer::start($name);
         let result = $block;
         timer.stop();
         result
     }};
-} 
+}

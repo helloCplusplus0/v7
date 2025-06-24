@@ -1,5 +1,5 @@
 //! 统一错误处理系统
-//! 
+//!
 //! 基于v6设计理念的轻量级错误处理，支持分布式追踪
 
 use std::fmt;
@@ -10,23 +10,24 @@ use uuid::Uuid;
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum ErrorCode {
     // 客户端错误（400系列）
-    BadRequest,          // 400
-    Unauthorized,        // 401
-    Forbidden,           // 403
-    NotFound,            // 404
-    Validation,          // 422
-    TooManyRequests,     // 429
-    
+    BadRequest,      // 400
+    Unauthorized,    // 401
+    Forbidden,       // 403
+    NotFound,        // 404
+    Validation,      // 422
+    TooManyRequests, // 429
+
     // 服务器错误（500系列）
-    Internal,            // 500
-    NotImplemented,      // 501
-    ServiceUnavailable,  // 503
-    Database,            // 500 (数据库错误)
-    Timeout,             // 504
+    Internal,           // 500
+    NotImplemented,     // 501
+    ServiceUnavailable, // 503
+    Database,           // 500 (数据库错误)
+    Timeout,            // 504
 }
 
 impl ErrorCode {
     /// 获取HTTP状态码
+    #[must_use]
     pub fn status_code(&self) -> u16 {
         match self {
             Self::BadRequest => 400,
@@ -44,11 +45,13 @@ impl ErrorCode {
     }
 
     /// 判断是否为客户端错误
+    #[must_use]
     pub fn is_client_error(&self) -> bool {
         self.status_code() < 500
     }
 
     /// 判断是否为服务器错误  
+    #[must_use]
     pub fn is_server_error(&self) -> bool {
         self.status_code() >= 500
     }
@@ -87,7 +90,7 @@ impl AppError {
             location: None,
         }
     }
-    
+
     /// 添加上下文
     pub fn with_context(mut self, context: impl Into<String>) -> Self {
         self.context = Some(context.into());
@@ -105,49 +108,51 @@ impl AppError {
         self.correlation_id = Some(correlation_id.into());
         self
     }
-    
+
     /// 添加源错误
     pub fn with_source<E: std::error::Error + Send + Sync + 'static>(mut self, source: E) -> Self {
         self.source = Some(Box::new(source));
         self
     }
-    
+
     /// 添加位置信息
+    #[must_use]
     pub fn with_location(mut self, location: &'static str) -> Self {
         self.location = Some(location);
         self
     }
 
     /// 生成新的追踪ID
+    #[must_use]
     pub fn generate_trace_id() -> String {
         Uuid::new_v4().to_string()
     }
-    
+
     // 便利构造函数
     pub fn bad_request(message: impl Into<String>) -> Self {
         Self::new(ErrorCode::BadRequest, message)
     }
-    
+
     pub fn unauthorized(message: impl Into<String>) -> Self {
         Self::new(ErrorCode::Unauthorized, message)
     }
-    
+
     pub fn forbidden(message: impl Into<String>) -> Self {
         Self::new(ErrorCode::Forbidden, message)
     }
-    
+
     pub fn not_found(message: impl Into<String>) -> Self {
         Self::new(ErrorCode::NotFound, message)
     }
-    
+
     pub fn validation(message: impl Into<String>) -> Self {
         Self::new(ErrorCode::Validation, message)
     }
-    
+
     pub fn internal(message: impl Into<String>) -> Self {
         Self::new(ErrorCode::Internal, message)
     }
-    
+
     pub fn database(message: impl Into<String>) -> Self {
         Self::new(ErrorCode::Database, message)
     }
@@ -160,34 +165,36 @@ impl AppError {
 impl fmt::Display for AppError {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         write!(f, "[{}] {}", self.code.status_code(), self.message)?;
-        
+
         if let Some(context) = &self.context {
-            write!(f, " (Context: {})", context)?;
+            write!(f, " (Context: {context})")?;
         }
 
         if let Some(trace_id) = &self.trace_id {
-            write!(f, " (TraceID: {})", trace_id)?;
+            write!(f, " (TraceID: {trace_id})")?;
         }
 
         if let Some(correlation_id) = &self.correlation_id {
-            write!(f, " (CorrelationID: {})", correlation_id)?;
+            write!(f, " (CorrelationID: {correlation_id})")?;
         }
-        
+
         if let Some(location) = self.location {
-            write!(f, " (Location: {})", location)?;
+            write!(f, " (Location: {location})")?;
         }
-        
+
         Ok(())
     }
 }
 
 /// 错误定位函数（替代宏）
+#[must_use]
 pub fn with_location(mut error: AppError, location: &'static str) -> AppError {
     error.location = Some(location);
     error
 }
 
 /// 带追踪的错误函数（替代宏）
+#[must_use]
 pub fn with_trace(mut error: AppError, trace_id: String, location: &'static str) -> AppError {
     error.trace_id = Some(trace_id);
     error.location = Some(location);
@@ -195,7 +202,13 @@ pub fn with_trace(mut error: AppError, trace_id: String, location: &'static str)
 }
 
 /// 完整错误函数（替代宏）
-pub fn with_full_trace(mut error: AppError, trace_id: String, correlation_id: String, location: &'static str) -> AppError {
+#[must_use]
+pub fn with_full_trace(
+    mut error: AppError,
+    trace_id: String,
+    correlation_id: String,
+    location: &'static str,
+) -> AppError {
     error.trace_id = Some(trace_id);
     error.correlation_id = Some(correlation_id);
     error.location = Some(location);
@@ -216,21 +229,19 @@ mod tests {
 
     #[test]
     fn test_error_with_context() {
-        let error = AppError::internal("内部错误")
-            .with_context("用户ID: 123");
-        
+        let error = AppError::internal("内部错误").with_context("用户ID: 123");
+
         assert_eq!(error.code, ErrorCode::Internal);
         assert_eq!(error.context, Some("用户ID: 123".to_string()));
     }
 
     #[test]
     fn test_error_display() {
-        let error = AppError::not_found("用户不存在")
-            .with_context("查询用户信息");
-        
-        let display_str = format!("{}", error);
+        let error = AppError::not_found("用户不存在").with_context("查询用户信息");
+
+        let display_str = format!("{error}");
         assert!(display_str.contains("404"));
         assert!(display_str.contains("用户不存在"));
         assert!(display_str.contains("查询用户信息"));
     }
-} 
+}

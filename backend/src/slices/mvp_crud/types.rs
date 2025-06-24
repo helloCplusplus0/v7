@@ -1,5 +1,5 @@
-use serde::{Deserialize, Serialize};
 use chrono::{DateTime, Utc};
+use serde::{Deserialize, Serialize};
 
 /// Item实体 - CRUD操作的目标对象
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -93,19 +93,26 @@ pub type CrudResult<T> = Result<T, CrudError>;
 
 impl CreateItemRequest {
     /// 验证创建请求
+    ///
+    /// # Errors
+    ///
+    /// 当以下情况发生时返回验证错误：
+    /// - 名称为空或只包含空格
+    /// - 名称长度超过100字符  
+    /// - 描述长度超过500字符
     pub fn validate(&self) -> CrudResult<()> {
         if self.name.trim().is_empty() {
             return Err(CrudError::Validation {
                 message: "名称不能为空".to_string(),
             });
         }
-        
+
         if self.name.len() > 100 {
             return Err(CrudError::Validation {
                 message: "名称长度不能超过100字符".to_string(),
             });
         }
-        
+
         if let Some(desc) = &self.description {
             if desc.len() > 500 {
                 return Err(CrudError::Validation {
@@ -113,13 +120,20 @@ impl CreateItemRequest {
                 });
             }
         }
-        
+
         Ok(())
     }
 }
 
 impl UpdateItemRequest {
     /// 验证更新请求
+    ///
+    /// # Errors
+    ///
+    /// 当以下情况发生时返回验证错误：
+    /// - 名称为空或只包含空格
+    /// - 名称长度超过100字符
+    /// - 描述长度超过500字符
     pub fn validate(&self) -> CrudResult<()> {
         if let Some(name) = &self.name {
             if name.trim().is_empty() {
@@ -127,14 +141,14 @@ impl UpdateItemRequest {
                     message: "名称不能为空".to_string(),
                 });
             }
-            
+
             if name.len() > 100 {
                 return Err(CrudError::Validation {
                     message: "名称长度不能超过100字符".to_string(),
                 });
             }
         }
-        
+
         if let Some(desc) = &self.description {
             if desc.len() > 500 {
                 return Err(CrudError::Validation {
@@ -142,11 +156,12 @@ impl UpdateItemRequest {
                 });
             }
         }
-        
+
         Ok(())
     }
-    
+
     /// 检查是否有任何字段需要更新
+    #[must_use]
     pub fn has_updates(&self) -> bool {
         self.name.is_some() || self.description.is_some() || self.value.is_some()
     }
@@ -154,6 +169,7 @@ impl UpdateItemRequest {
 
 impl Item {
     /// 创建新的Item实例
+    #[must_use]
     pub fn new(id: String, name: String, description: Option<String>, value: i32) -> Self {
         let now = Utc::now();
         Self {
@@ -165,21 +181,21 @@ impl Item {
             updated_at: now,
         }
     }
-    
+
     /// 应用更新请求
     pub fn apply_update(&mut self, req: &UpdateItemRequest) {
         if let Some(name) = &req.name {
-            self.name = name.clone();
+            self.name.clone_from(name);
         }
-        
+
         if let Some(description) = &req.description {
             self.description = Some(description.clone());
         }
-        
+
         if let Some(value) = req.value {
             self.value = value;
         }
-        
+
         self.updated_at = Utc::now();
     }
-} 
+}

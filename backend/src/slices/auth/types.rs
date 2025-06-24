@@ -1,5 +1,5 @@
-use serde::{Deserialize, Serialize};
 use chrono::{DateTime, Utc};
+use serde::{Deserialize, Serialize};
 
 /// 认证请求（继承v6设计）
 #[derive(Debug, Deserialize)]
@@ -50,4 +50,4 @@ pub enum AuthError {
 }
 
 /// 统一结果类型
-pub type AuthResult<T> = Result<T, AuthError>; 
+pub type AuthResult<T> = Result<T, AuthError>;
