@@ -51,9 +51,6 @@ jobs:
 
       - name: 🏷️ Set Image Tags
         id: images
-        env:
-          BACKEND_IMAGE_BASE_VAR: ${{ env.BACKEND_IMAGE_BASE }}
-          WEB_IMAGE_BASE_VAR: ${{ env.WEB_IMAGE_BASE }}
         run: |
           # 基于分支设置镜像标签
           if [[ "${{ github.ref }}" == "refs/heads/main" ]]; then
@@ -64,25 +61,45 @@ jobs:
             TAG="${{ github.ref_name }}"
           fi
           
-          # 使用环境变量，如果为空则使用默认值
-          BACKEND_BASE="${BACKEND_IMAGE_BASE_VAR:-ghcr.io/hellocplusplus0/v7/backend}"
-          WEB_BASE="${WEB_IMAGE_BASE_VAR:-ghcr.io/hellocplusplus0/v7/web}"
+          # 直接使用默认值，确保镜像标签不为空
+          BACKEND_BASE="ghcr.io/hellocplusplus0/v7/backend"
+          WEB_BASE="ghcr.io/hellocplusplus0/v7/web"
+          
+          # 如果有自定义镜像地址，则使用自定义值
+          if [[ -n "${{ env.BACKEND_IMAGE_BASE }}" ]]; then
+            BACKEND_BASE="${{ env.BACKEND_IMAGE_BASE }}"
+          fi
+          
+          if [[ -n "${{ env.WEB_IMAGE_BASE }}" ]]; then
+            WEB_BASE="${{ env.WEB_IMAGE_BASE }}"
+          fi
           
           BACKEND_IMAGE="${BACKEND_BASE}:${TAG}"
           WEB_IMAGE="${WEB_BASE}:${TAG}"
           
           echo "backend-image=${BACKEND_IMAGE}" >> $GITHUB_OUTPUT
           echo "web-image=${WEB_IMAGE}" >> $GITHUB_OUTPUT
-          echo "📦 后端镜像: ${BACKEND_IMAGE}"
-          echo "🌐 前端镜像: ${WEB_IMAGE}"
-          echo "🔍 调试信息:"
-          echo "  原始 BACKEND_IMAGE_BASE: ${{ env.BACKEND_IMAGE_BASE }}"
-          echo "  原始 WEB_IMAGE_BASE: ${{ env.WEB_IMAGE_BASE }}"
-          echo "  处理后 BACKEND_BASE: ${BACKEND_BASE}"
-          echo "  处理后 WEB_BASE: ${WEB_BASE}"
-          echo "  TAG: ${TAG}"
-          echo "  最终 BACKEND_IMAGE: ${BACKEND_IMAGE}"
-          echo "  最终 WEB_IMAGE: ${WEB_IMAGE}"
+          
+          echo "🔍 镜像标签设置完成:"
+          echo "  分支: ${{ github.ref }}"
+          echo "  标签: ${TAG}"
+          echo "  后端基础: ${BACKEND_BASE}"
+          echo "  前端基础: ${WEB_BASE}"
+          echo "  📦 最终后端镜像: ${BACKEND_IMAGE}"
+          echo "  🌐 最终前端镜像: ${WEB_IMAGE}"
+          
+          # 验证输出不为空
+          if [[ -z "${BACKEND_IMAGE}" ]]; then
+            echo "❌ 错误: 后端镜像标签为空"
+            exit 1
+          fi
+          
+          if [[ -z "${WEB_IMAGE}" ]]; then
+            echo "❌ 错误: 前端镜像标签为空"
+            exit 1
+          fi
+          
+          echo "✅ 镜像标签验证通过"
 
       - name: 🚀 Check Deployment Configuration
         id: deploy-check
