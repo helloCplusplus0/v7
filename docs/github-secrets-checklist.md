@@ -25,8 +25,8 @@
 
 | Secret名称 | 值 | 说明 |
 |-----------|----|----|
-| `BACKEND_IMAGE` | `ghcr.io/hellocplusplus0/v7/backend` | 后端镜像地址 |
-| `WEB_IMAGE` | `ghcr.io/hellocplusplus0/v7/web` | 前端镜像地址 |
+| `BACKEND_IMAGE` | `ghcr.io/hellocplusplus0/v7/backend:latest` | 后端镜像地址 |
+| `WEB_IMAGE` | `ghcr.io/hellocplusplus0/v7/web:latest` | 前端镜像地址 |
 
 ### 🔧 环境变量配置
 

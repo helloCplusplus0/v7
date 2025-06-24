@@ -64,8 +64,8 @@ jobs:
             TAG="${{ github.ref_name }}"
           fi
           
-          BACKEND_IMAGE="${BACKEND_IMAGE_BASE}:${TAG}"
-          WEB_IMAGE="${WEB_IMAGE_BASE}:${TAG}"
+          BACKEND_IMAGE="ghcr.io/hellocplusplus0/v7/backend:${TAG}"
+          WEB_IMAGE="ghcr.io/hellocplusplus0/v7/web:${TAG}"
           
           echo "backend-image=${BACKEND_IMAGE}" >> $GITHUB_OUTPUT
           echo "web-image=${WEB_IMAGE}" >> $GITHUB_OUTPUT
