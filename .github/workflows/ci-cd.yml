@@ -53,6 +53,9 @@ jobs:
         id: images
         run: |
           # 基于分支设置镜像标签
+          echo "当前分支: ${{ github.ref }}"
+          echo "分支名称: ${{ github.ref_name }}"
+          
           if [[ "${{ github.ref }}" == "refs/heads/main" ]]; then
             TAG="latest"
           elif [[ "${{ github.ref }}" == "refs/heads/develop" ]]; then
