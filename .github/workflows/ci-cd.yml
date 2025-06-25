@@ -145,8 +145,23 @@ jobs:
             TAG="${{ github.ref_name }}"
           fi
           
-          # 使用小写用户名构建镜像地址
-          REGISTRY_USER_LOWER="${{ env.REGISTRY_USER_LOWER }}"
+          # 使用小写用户名构建镜像地址（从前一个步骤的输出获取）
+          REGISTRY_USER_LOWER="${{ steps.registry-setup.outputs.registry-user-lower }}"
+          
+          # 调试信息
+          echo "🔍 调试镜像标签构建:"
+          echo "  原始仓库所有者: ${{ github.repository_owner }}"
+          echo "  小写用户名: $REGISTRY_USER_LOWER"
+          echo "  分支引用: ${{ github.ref }}"
+          echo "  标签: $TAG"
+          
+          # 验证关键变量不为空
+          if [[ -z "$REGISTRY_USER_LOWER" ]]; then
+            echo "❌ 致命错误：小写用户名为空！"
+            echo "🔧 检查 registry-setup 步骤的输出"
+            exit 1
+          fi
+          
           BACKEND_BASE="ghcr.io/${REGISTRY_USER_LOWER}/v7/backend"
           WEB_BASE="ghcr.io/${REGISTRY_USER_LOWER}/v7/web"
           
@@ -459,11 +474,19 @@ jobs:
         run: |
           echo "🔍 最终镜像标签验证："
           
+          # 调试：显示所有传递的输出
+          echo "🔍 从 environment-check 传递的输出:"
+          echo "  backend-image: '${{ needs.environment-check.outputs.backend-image }}'"
+          echo "  web-image: '${{ needs.environment-check.outputs.web-image }}'"
+          echo "  registry-user-lower: '${{ needs.environment-check.outputs.registry-user-lower }}'"
+          echo "  auth-method: '${{ needs.environment-check.outputs.auth-method }}'"
+          
           BACKEND_TAG="${{ needs.environment-check.outputs.backend-image }}"
           WEB_TAG="${{ needs.environment-check.outputs.web-image }}"
           
-          echo "后端镜像: '$BACKEND_TAG'"
-          echo "前端镜像: '$WEB_TAG'"
+          echo "🏷️ 解析后的镜像标签:"
+          echo "  后端镜像: '$BACKEND_TAG'"
+          echo "  前端镜像: '$WEB_TAG'"
           
           # 最后的安全检查
           if [[ -z "$BACKEND_TAG" ]]; then
