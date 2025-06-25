@@ -8,13 +8,11 @@ on:
     branches: [ main, develop ]
 
 env:
-  # 容器镜像配置 - 修复认证问题
+  # 容器镜像配置 - 完备的认证机制
   REGISTRY: ghcr.io
   REGISTRY_USER: ${{ github.actor }}
-  # 使用PAT token而非GITHUB_TOKEN以避免权限问题
-  REGISTRY_PASSWORD: ${{ secrets.GHCR_TOKEN || secrets.GITHUB_TOKEN }}
   
-  # 镜像地址 - 基于真实Secrets配置
+  # 📊 镜像地址 - 基于真实Secrets配置
   BACKEND_IMAGE_BASE: ${{ secrets.BACKEND_IMAGE || 'ghcr.io/hellocplusplus0/v7/backend' }}
   WEB_IMAGE_BASE: ${{ secrets.WEB_IMAGE || 'ghcr.io/hellocplusplus0/v7/web' }}
   
@@ -37,9 +35,72 @@ jobs:
       backend-image: ${{ steps.images.outputs.backend-image }}
       web-image: ${{ steps.images.outputs.web-image }}
       deploy-ready: ${{ steps.deploy-check.outputs.deploy-ready }}
+      auth-token: ${{ steps.auth-check.outputs.auth-token }}
+      auth-method: ${{ steps.auth-check.outputs.auth-method }}
     steps:
       - name: 📋 Checkout Repository
         uses: actions/checkout@v4
+
+      - name: 🔐 Comprehensive Authentication Check
+        id: auth-check
+        run: |
+          echo "🔐 执行全面认证检查..."
+          
+          # 检查可用的认证方式
+          GHCR_TOKEN="${{ secrets.GHCR_TOKEN }}"
+          GITHUB_TOKEN="${{ secrets.GITHUB_TOKEN }}"
+          
+          AUTH_TOKEN=""
+          AUTH_METHOD=""
+          
+          echo "🔍 检查认证token可用性:"
+          
+          if [[ -n "$GHCR_TOKEN" ]]; then
+            echo "✅ GHCR_TOKEN 可用 (长度: ${#GHCR_TOKEN})"
+            if [[ ${#GHCR_TOKEN} -gt 10 ]]; then
+              AUTH_TOKEN="$GHCR_TOKEN"
+              AUTH_METHOD="GHCR_TOKEN"
+              echo "🎯 选择使用 GHCR_TOKEN"
+            else
+              echo "⚠️ GHCR_TOKEN 长度异常，可能为空值"
+            fi
+          else
+            echo "❌ GHCR_TOKEN 不可用"
+          fi
+          
+          if [[ -n "$GITHUB_TOKEN" ]]; then
+            echo "✅ GITHUB_TOKEN 可用 (长度: ${#GITHUB_TOKEN})"
+            if [[ -z "$AUTH_TOKEN" ]]; then
+              AUTH_TOKEN="$GITHUB_TOKEN"
+              AUTH_METHOD="GITHUB_TOKEN"
+              echo "🎯 选择使用 GITHUB_TOKEN (备用)"
+            fi
+          else
+            echo "❌ GITHUB_TOKEN 不可用"
+          fi
+          
+          # 最终认证方式确定
+          if [[ -n "$AUTH_TOKEN" ]]; then
+            echo "✅ 认证配置成功"
+            echo "🔑 使用方式: $AUTH_METHOD"
+            echo "🔍 Token前缀: ${AUTH_TOKEN:0:8}..."
+            
+            # 验证token格式
+            if [[ "$AUTH_TOKEN" =~ ^ghp_ ]]; then
+              echo "✅ 检测到Personal Access Token格式"
+            elif [[ "$AUTH_TOKEN" =~ ^ghs_ ]]; then
+              echo "✅ 检测到GitHub Actions Token格式"
+            else
+              echo "⚠️ 未知token格式，但继续尝试使用"
+            fi
+            
+            echo "auth-token=***" >> $GITHUB_OUTPUT
+            echo "auth-method=$AUTH_METHOD" >> $GITHUB_OUTPUT
+          else
+            echo "❌ 无可用认证token"
+            echo "🔧 这将导致镜像推送失败"
+            exit 1
+          fi
 
       - name: 📊 Set Version Information
         id: versions
@@ -264,29 +325,74 @@ jobs:
     permissions:
       contents: read
       packages: write
+      id-token: write
     
     steps:
       - name: 📋 Checkout Repository
         uses: actions/checkout@v4
 
-      - name: 🔐 Login to GitHub Container Registry
-        uses: docker/login-action@v3
-        with:
-          registry: ${{ env.REGISTRY }}
-          username: ${{ env.REGISTRY_USER }}
-          password: ${{ env.REGISTRY_PASSWORD }}
-          
-      - name: 🔍 Verify Registry Authentication
+      - name: 🔐 Advanced Registry Authentication
         run: |
-          echo "🔍 验证容器注册表认证..."
-          echo "Registry: ${{ env.REGISTRY }}"
-          echo "User: ${{ env.REGISTRY_USER }}"
+          echo "🔐 执行高级容器注册表认证..."
           
-          # 测试认证是否成功
-          if docker info | grep -q "Username: ${{ env.REGISTRY_USER }}"; then
-            echo "✅ Docker认证成功"
+          # 获取认证信息
+          AUTH_METHOD="${{ needs.environment-check.outputs.auth-method }}"
+          REGISTRY_USER="${{ github.actor }}"
+          REGISTRY="ghcr.io"
+          
+          echo "🔍 认证信息:"
+          echo "  注册表: $REGISTRY"
+          echo "  用户: $REGISTRY_USER"
+          echo "  认证方式: $AUTH_METHOD"
+          
+          # 设置认证token
+          if [[ "$AUTH_METHOD" == "GHCR_TOKEN" ]]; then
+            REGISTRY_PASSWORD="${{ secrets.GHCR_TOKEN }}"
+            echo "🔑 使用Personal Access Token (GHCR_TOKEN)"
           else
-            echo "⚠️ Docker认证状态未知，继续尝试构建"
+            REGISTRY_PASSWORD="${{ secrets.GITHUB_TOKEN }}"
+            echo "🔑 使用GitHub Actions Token (GITHUB_TOKEN)"
+          fi
+          
+          # 验证token不为空
+          if [[ -z "$REGISTRY_PASSWORD" ]]; then
+            echo "❌ 认证token为空"
+            exit 1
+          fi
+          
+          echo "✅ Token长度: ${#REGISTRY_PASSWORD}"
+          echo "✅ Token前缀: ${REGISTRY_PASSWORD:0:8}..."
+          
+          # 执行登录
+          echo "🔐 执行Docker登录..."
+          echo "$REGISTRY_PASSWORD" | docker login "$REGISTRY" -u "$REGISTRY_USER" --password-stdin
+          
+          if [[ $? -eq 0 ]]; then
+            echo "✅ 容器注册表认证成功"
+          else
+            echo "❌ 容器注册表认证失败"
+            exit 1
+          fi
+          
+          # 验证认证状态
+          echo "🔍 验证认证状态..."
+          docker system info | grep -A 5 "Registry Mirrors" || true
+          
+          # 测试权限
+          echo "🧪 测试推送权限..."
+          TEST_TAG="$REGISTRY/$REGISTRY_USER/test:auth-check"
+          echo "FROM alpine:latest" | docker build -t "$TEST_TAG" -
+          
+          if docker push "$TEST_TAG" 2>/dev/null; then
+            echo "✅ 推送权限验证成功"
+            docker rmi "$TEST_TAG" 2>/dev/null || true
+          else
+            echo "❌ 推送权限验证失败"
+            echo "🔍 检查token权限范围:"
+            echo "  - write:packages (必需)"
+            echo "  - read:packages (必需)"
+            echo "  - repo (推荐)"
+            exit 1
           fi
 
       - name: 🐳 Set up Docker Buildx
@@ -298,32 +404,41 @@ jobs:
           name: frontend-dist
           path: web/dist/
 
-      - name: 🔍 Debug Image Tags
+      - name: 🔍 Final Image Tag Verification
         run: |
-          echo "🔍 调试镜像标签值："
-          echo "后端镜像: '${{ needs.environment-check.outputs.backend-image }}'"
-          echo "前端镜像: '${{ needs.environment-check.outputs.web-image }}'"
-          echo "镜像标签长度: ${#BACKEND_TAG}"
-          echo "Git SHA: ${{ github.sha }}"
+          echo "🔍 最终镜像标签验证："
           
           BACKEND_TAG="${{ needs.environment-check.outputs.backend-image }}"
           WEB_TAG="${{ needs.environment-check.outputs.web-image }}"
           
+          echo "后端镜像: '$BACKEND_TAG'"
+          echo "前端镜像: '$WEB_TAG'"
+          
+          # 最后的安全检查
           if [[ -z "$BACKEND_TAG" ]]; then
-            echo "❌ 错误：后端镜像标签为空！"
-            echo "🔧 使用应急默认值..."
-            BACKEND_TAG="ghcr.io/hellocplusplus0/v7/backend:latest"
-            echo "应急后端镜像: $BACKEND_TAG"
+            echo "❌ 致命错误：后端镜像标签为空！"
+            exit 1
           fi
           
           if [[ -z "$WEB_TAG" ]]; then
-            echo "❌ 错误：前端镜像标签为空！"
-            echo "🔧 使用应急默认值..."
-            WEB_TAG="ghcr.io/hellocplusplus0/v7/web:latest"
-            echo "应急前端镜像: $WEB_TAG"
+            echo "❌ 致命错误：前端镜像标签为空！"
+            exit 1
           fi
           
-          # 将修正后的标签保存为环境变量
+          # 验证镜像标签格式
+          if [[ ! "$BACKEND_TAG" =~ ^ghcr\.io/.+:.+ ]]; then
+            echo "❌ 后端镜像标签格式错误: $BACKEND_TAG"
+            exit 1
+          fi
+          
+          if [[ ! "$WEB_TAG" =~ ^ghcr\.io/.+:.+ ]]; then
+            echo "❌ 前端镜像标签格式错误: $WEB_TAG"
+            exit 1
+          fi
+          
+          echo "✅ 镜像标签验证通过"
+          
+          # 保存到环境变量
           echo "FINAL_BACKEND_TAG=$BACKEND_TAG" >> $GITHUB_ENV
           echo "FINAL_WEB_TAG=$WEB_TAG" >> $GITHUB_ENV
 
@@ -333,7 +448,7 @@ jobs:
           context: ./backend
           file: ./backend/Dockerfile
           push: true
-          tags: ${{ env.FINAL_BACKEND_TAG }}
+          tags: ${{ needs.environment-check.outputs.backend-image }}
           cache-from: type=gha
           cache-to: type=gha,mode=max
           platforms: linux/amd64
@@ -342,6 +457,8 @@ jobs:
             org.opencontainers.image.description=V7 Rust Backend with FMOD Architecture
             org.opencontainers.image.version=${{ github.sha }}
             org.opencontainers.image.revision=${{ github.sha }}
+            org.opencontainers.image.source=${{ github.server_url }}/${{ github.repository }}
+            org.opencontainers.image.created=${{ github.event.head_commit.timestamp }}
 
       - name: 🌐 Build and Push Web Image
         uses: docker/build-push-action@v5
@@ -349,7 +466,7 @@ jobs:
           context: ./web
           file: ./web/Dockerfile
           push: true
-          tags: ${{ env.FINAL_WEB_TAG }}
+          tags: ${{ needs.environment-check.outputs.web-image }}
           cache-from: type=gha
           cache-to: type=gha,mode=max
           platforms: linux/amd64
@@ -358,13 +475,49 @@ jobs:
             org.opencontainers.image.description=V7 SolidJS Frontend with Web v7 Architecture
             org.opencontainers.image.version=${{ github.sha }}
             org.opencontainers.image.revision=${{ github.sha }}
+            org.opencontainers.image.source=${{ github.server_url }}/${{ github.repository }}
+            org.opencontainers.image.created=${{ github.event.head_commit.timestamp }}
 
-      - name: 📝 Image Build Summary
+      - name: 🔍 Post-Build Verification
         run: |
-          echo "📦 镜像构建完成！"
-          echo "🦀 Backend: ${{ needs.environment-check.outputs.backend-image }}"
-          echo "🌐 Web: ${{ needs.environment-check.outputs.web-image }}"
+          echo "🔍 构建后验证..."
+          
+          # 验证镜像是否成功推送
+          BACKEND_TAG="${{ needs.environment-check.outputs.backend-image }}"
+          WEB_TAG="${{ needs.environment-check.outputs.web-image }}"
+          
+          echo "📦 验证镜像推送状态:"
+          echo "  后端: $BACKEND_TAG"
+          echo "  前端: $WEB_TAG"
+          
+          # 尝试拉取刚推送的镜像进行验证
+          if docker pull "$BACKEND_TAG"; then
+            echo "✅ 后端镜像推送验证成功"
+          else
+            echo "❌ 后端镜像推送验证失败"
+            exit 1
+          fi
+          
+          if docker pull "$WEB_TAG"; then
+            echo "✅ 前端镜像推送验证成功"
+          else
+            echo "❌ 前端镜像推送验证失败"
+            exit 1
+          fi
+          
+          echo "🎉 所有镜像构建和推送成功！"
+
+      - name: 📝 Build Summary
+        run: |
+          echo "📝 构建总结"
+          echo "=============="
+          echo "🔑 认证方式: ${{ needs.environment-check.outputs.auth-method }}"
+          echo "🦀 后端镜像: ${{ needs.environment-check.outputs.backend-image }}"
+          echo "🌐 前端镜像: ${{ needs.environment-check.outputs.web-image }}"
           echo "🏷️ Git SHA: ${{ github.sha }}"
+          echo "🌿 分支: ${{ github.ref_name }}"
+          echo "📅 构建时间: $(date -u +%Y-%m-%dT%H:%M:%SZ)"
+          echo "=============="
 
   # 生产环境部署阶段
   deploy-production:
