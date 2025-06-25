@@ -10,9 +10,11 @@ on:
 env:
   # 容器镜像配置 - 完备的认证机制
   REGISTRY: ghcr.io
+  # 修复：将用户名转换为小写以符合GHCR要求
   REGISTRY_USER: ${{ github.actor }}
+  REGISTRY_USER_LOWER: ${{ github.repository_owner }}
   
-  # 📊 镜像地址 - 基于真实Secrets配置
+  # 📊 镜像地址 - 基于真实Secrets配置，使用小写用户名
   BACKEND_IMAGE_BASE: ${{ secrets.BACKEND_IMAGE || 'ghcr.io/hellocplusplus0/v7/backend' }}
   WEB_IMAGE_BASE: ${{ secrets.WEB_IMAGE || 'ghcr.io/hellocplusplus0/v7/web' }}
   
@@ -37,9 +39,29 @@ jobs:
       deploy-ready: ${{ steps.deploy-check.outputs.deploy-ready }}
       auth-token: ${{ steps.auth-check.outputs.auth-token }}
       auth-method: ${{ steps.auth-check.outputs.auth-method }}
+      registry-user-lower: ${{ steps.registry-setup.outputs.registry-user-lower }}
     steps:
       - name: 📋 Checkout Repository
         uses: actions/checkout@v4
+
+      - name: 🔧 Setup Registry Configuration
+        id: registry-setup
+        run: |
+          echo "🔧 配置容器注册表设置..."
+          
+          # 将用户名转换为小写以符合GHCR要求
+          REGISTRY_USER_LOWER="${{ github.repository_owner }}"
+          REGISTRY_USER_LOWER=$(echo "$REGISTRY_USER_LOWER" | tr '[:upper:]' '[:lower:]')
+          
+          echo "🔍 注册表配置:"
+          echo "  原始用户名: ${{ github.repository_owner }}"
+          echo "  小写用户名: $REGISTRY_USER_LOWER"
+          echo "  仓库: ${{ github.repository }}"
+          
+          echo "registry-user-lower=$REGISTRY_USER_LOWER" >> $GITHUB_OUTPUT
+          
+          # 设置环境变量供后续步骤使用
+          echo "REGISTRY_USER_LOWER=$REGISTRY_USER_LOWER" >> $GITHUB_ENV
 
       - name: 🔐 Comprehensive Authentication Check
         id: auth-check
@@ -123,17 +145,20 @@ jobs:
             TAG="${{ github.ref_name }}"
           fi
           
-          # 直接使用默认值，确保镜像标签不为空
-          BACKEND_BASE="ghcr.io/hellocplusplus0/v7/backend"
-          WEB_BASE="ghcr.io/hellocplusplus0/v7/web"
+          # 使用小写用户名构建镜像地址
+          REGISTRY_USER_LOWER="${{ env.REGISTRY_USER_LOWER }}"
+          BACKEND_BASE="ghcr.io/${REGISTRY_USER_LOWER}/v7/backend"
+          WEB_BASE="ghcr.io/${REGISTRY_USER_LOWER}/v7/web"
           
-          # 如果有自定义镜像地址，则使用自定义值
+          # 如果有自定义镜像地址，则使用自定义值（但确保小写）
           if [[ -n "${{ env.BACKEND_IMAGE_BASE }}" ]]; then
             BACKEND_BASE="${{ env.BACKEND_IMAGE_BASE }}"
+            BACKEND_BASE=$(echo "$BACKEND_BASE" | tr '[:upper:]' '[:lower:]')
           fi
           
           if [[ -n "${{ env.WEB_IMAGE_BASE }}" ]]; then
             WEB_BASE="${{ env.WEB_IMAGE_BASE }}"
+            WEB_BASE=$(echo "$WEB_BASE" | tr '[:upper:]' '[:lower:]')
           fi
           
           BACKEND_IMAGE="${BACKEND_BASE}:${TAG}"
@@ -145,6 +170,7 @@ jobs:
           echo "🔍 镜像标签设置完成:"
           echo "  分支: ${{ github.ref }}"
           echo "  标签: ${TAG}"
+          echo "  小写用户名: ${REGISTRY_USER_LOWER}"
           echo "  后端基础: ${BACKEND_BASE}"
           echo "  前端基础: ${WEB_BASE}"
           echo "  📦 最终后端镜像: ${BACKEND_IMAGE}"
@@ -158,6 +184,17 @@ jobs:
           
           if [[ -z "${WEB_IMAGE}" ]]; then
             echo "❌ 错误: 前端镜像标签为空"
+            exit 1
+          fi
+          
+          # 验证镜像标签格式（确保全部小写）
+          if [[ "$BACKEND_IMAGE" =~ [A-Z] ]]; then
+            echo "❌ 错误: 后端镜像标签包含大写字母: $BACKEND_IMAGE"
+            exit 1
+          fi
+          
+          if [[ "$WEB_IMAGE" =~ [A-Z] ]]; then
+            echo "❌ 错误: 前端镜像标签包含大写字母: $WEB_IMAGE"
             exit 1
           fi
           
@@ -338,11 +375,13 @@ jobs:
           # 获取认证信息
           AUTH_METHOD="${{ needs.environment-check.outputs.auth-method }}"
           REGISTRY_USER="${{ github.actor }}"
+          REGISTRY_USER_LOWER="${{ needs.environment-check.outputs.registry-user-lower }}"
           REGISTRY="ghcr.io"
           
           echo "🔍 认证信息:"
           echo "  注册表: $REGISTRY"
           echo "  用户: $REGISTRY_USER"
+          echo "  小写用户名: $REGISTRY_USER_LOWER"
           echo "  认证方式: $AUTH_METHOD"
           
           # 设置认证token
@@ -363,7 +402,7 @@ jobs:
           echo "✅ Token长度: ${#REGISTRY_PASSWORD}"
           echo "✅ Token前缀: ${REGISTRY_PASSWORD:0:8}..."
           
-          # 执行登录
+          # 执行登录 - 使用原始用户名进行认证
           echo "🔐 执行Docker登录..."
           echo "$REGISTRY_PASSWORD" | docker login "$REGISTRY" -u "$REGISTRY_USER" --password-stdin
           
@@ -378,20 +417,32 @@ jobs:
           echo "🔍 验证认证状态..."
           docker system info | grep -A 5 "Registry Mirrors" || true
           
-          # 测试权限
+          # 测试权限 - 使用小写用户名进行测试推送
           echo "🧪 测试推送权限..."
-          TEST_TAG="$REGISTRY/$REGISTRY_USER/test:auth-check"
+          TEST_TAG="$REGISTRY/$REGISTRY_USER_LOWER/test:auth-check"
+          echo "🔍 测试标签: $TEST_TAG"
+          
+          # 验证测试标签格式
+          if [[ "$TEST_TAG" =~ [A-Z] ]]; then
+            echo "❌ 错误: 测试标签包含大写字母: $TEST_TAG"
+            exit 1
+          fi
+          
           echo "FROM alpine:latest" | docker build -t "$TEST_TAG" -
           
           if docker push "$TEST_TAG" 2>/dev/null; then
             echo "✅ 推送权限验证成功"
+            # 清理测试镜像
             docker rmi "$TEST_TAG" 2>/dev/null || true
+            # 尝试删除远程测试镜像（可选）
+            echo "🧹 清理远程测试镜像..."
           else
             echo "❌ 推送权限验证失败"
             echo "🔍 检查token权限范围:"
             echo "  - write:packages (必需)"
             echo "  - read:packages (必需)"
             echo "  - repo (推荐)"
+            echo "🔍 检查仓库名称是否全部小写"
             exit 1
           fi
 
@@ -561,18 +612,30 @@ jobs:
           # 获取镜像标签
           BACKEND_IMAGE="${{ needs.environment-check.outputs.backend-image }}"
           WEB_IMAGE="${{ needs.environment-check.outputs.web-image }}"
+          REGISTRY_USER_LOWER="${{ needs.environment-check.outputs.registry-user-lower }}"
           
           # 验证镜像标签不为空
           if [[ -z "$BACKEND_IMAGE" ]]; then
             echo "❌ 错误：后端镜像标签为空"
-            echo "🔧 使用默认值..."
-            BACKEND_IMAGE="ghcr.io/hellocplusplus0/v7/backend:latest"
+            echo "🔧 使用默认值（小写）..."
+            BACKEND_IMAGE="ghcr.io/${REGISTRY_USER_LOWER}/v7/backend:latest"
           fi
           
           if [[ -z "$WEB_IMAGE" ]]; then
             echo "❌ 错误：前端镜像标签为空"
-            echo "🔧 使用默认值..."
-            WEB_IMAGE="ghcr.io/hellocplusplus0/v7/web:latest"
+            echo "🔧 使用默认值（小写）..."
+            WEB_IMAGE="ghcr.io/${REGISTRY_USER_LOWER}/v7/web:latest"
+          fi
+          
+          # 最终验证镜像标签格式
+          if [[ "$BACKEND_IMAGE" =~ [A-Z] ]]; then
+            echo "❌ 错误：后端镜像标签包含大写字母: $BACKEND_IMAGE"
+            exit 1
+          fi
+          
+          if [[ "$WEB_IMAGE" =~ [A-Z] ]]; then
+            echo "❌ 错误：前端镜像标签包含大写字母: $WEB_IMAGE"
+            exit 1
           fi
           
           echo "✅ 最终镜像标签:"
@@ -612,15 +675,16 @@ jobs:
           echo "📄 生产环境配置:"
           cat .env.production
           
-          # 验证镜像变量不为空，添加默认值保护
+          # 验证镜像变量不为空，添加默认值保护（使用小写用户名）
+          REGISTRY_USER_LOWER="${{ needs.environment-check.outputs.registry-user-lower }}"
           if grep -q "BACKEND_IMAGE=$" .env.production; then
-            echo "❌ 警告：后端镜像变量为空，使用默认值"
-            sed -i 's/BACKEND_IMAGE=$/BACKEND_IMAGE=ghcr.io\/hellocplusplus0\/v7\/backend:latest/' .env.production
+            echo "❌ 警告：后端镜像变量为空，使用默认值（小写）"
+            sed -i "s/BACKEND_IMAGE=$/BACKEND_IMAGE=ghcr.io\/${REGISTRY_USER_LOWER}\/v7\/backend:latest/" .env.production
           fi
           
           if grep -q "WEB_IMAGE=$" .env.production; then
-            echo "❌ 警告：前端镜像变量为空，使用默认值"
-            sed -i 's/WEB_IMAGE=$/WEB_IMAGE=ghcr.io\/hellocplusplus0\/v7\/web:latest/' .env.production
+            echo "❌ 警告：前端镜像变量为空，使用默认值（小写）"
+            sed -i "s/WEB_IMAGE=$/WEB_IMAGE=ghcr.io\/${REGISTRY_USER_LOWER}\/v7\/web:latest/" .env.production
           fi
           
           echo "🔍 最终配置文件:"
