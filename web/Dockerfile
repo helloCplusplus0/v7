@@ -36,18 +36,18 @@ RUN rm -rf node_modules/.cache
 # ===== 🌐 Nginx配置阶段 =====
 FROM nginx:1.25-alpine AS nginx-config
 
-# 🔧 创建优化的Nginx配置
-RUN cat > /etc/nginx/nginx.conf << 'EOF'
-# 🚀 V7 Web Nginx 配置 - Podman 优化版本
-user nginx;
-worker_processes auto;
+# 🔧 创建支持环境变量的Nginx配置模板
+RUN cat > /etc/nginx/nginx.conf.template << 'EOF'
+# 🚀 V7 Web Nginx 配置 - 支持环境变量的版本
+user ${NGINX_USER};
+worker_processes ${NGINX_WORKER_PROCESSES};
 worker_rlimit_nofile 65535;
 
-error_log /var/log/nginx/error.log warn;
+error_log /var/log/nginx/error.log ${NGINX_LOG_LEVEL};
 pid /var/run/nginx.pid;
 
 events {
-    worker_connections 1024;
+    worker_connections ${NGINX_WORKER_CONNECTIONS};
     use epoll;
     multi_accept on;
 }
@@ -100,18 +100,18 @@ http {
 }
 EOF
 
-# 🔧 创建站点配置
-RUN cat > /etc/nginx/conf.d/default.conf << 'EOF'
-# 🌐 V7 Web 站点配置
+# 🔧 创建支持环境变量的站点配置模板
+RUN cat > /etc/nginx/conf.d/default.conf.template << 'EOF'
+# 🌐 V7 Web 站点配置 - 支持环境变量
 server {
-    listen 80;
+    listen ${NGINX_PORT};
     server_name _;
     root /usr/share/nginx/html;
     index index.html;
 
     # 📊 访问日志
     access_log /var/log/nginx/access.log main;
-    error_log /var/log/nginx/error.log warn;
+    error_log /var/log/nginx/error.log ${NGINX_LOG_LEVEL};
 
     # 🏥 健康检查端点
     location /health {
@@ -136,7 +136,7 @@ server {
 
     # 🔧 API代理（如果需要）
     location /api/ {
-        proxy_pass http://backend:3000/api/;
+        proxy_pass ${BACKEND_URL}/api/;
         proxy_http_version 1.1;
         proxy_set_header Upgrade $http_upgrade;
         proxy_set_header Connection 'upgrade';
@@ -159,6 +159,36 @@ server {
 }
 EOF
 
+# 🔧 创建配置生成脚本
+RUN cat > /docker-entrypoint.d/30-generate-config.sh << 'EOF'
+#!/bin/sh
+set -e
+
+# 设置默认值
+export NGINX_USER=${NGINX_USER:-nginx}
+export NGINX_PORT=${NGINX_PORT:-8080}
+export NGINX_WORKER_PROCESSES=${NGINX_WORKER_PROCESSES:-auto}
+export NGINX_WORKER_CONNECTIONS=${NGINX_WORKER_CONNECTIONS:-1024}
+export NGINX_LOG_LEVEL=${NGINX_LOG_LEVEL:-warn}
+export BACKEND_URL=${BACKEND_URL:-http://backend:3000}
+
+echo "🔧 生成Nginx配置文件..."
+echo "   端口: $NGINX_PORT"
+echo "   用户: $NGINX_USER"
+echo "   后端: $BACKEND_URL"
+
+# 使用envsubst生成最终配置
+envsubst '${NGINX_USER} ${NGINX_PORT} ${NGINX_WORKER_PROCESSES} ${NGINX_WORKER_CONNECTIONS} ${NGINX_LOG_LEVEL} ${BACKEND_URL}' \
+    < /etc/nginx/nginx.conf.template > /etc/nginx/nginx.conf
+
+envsubst '${NGINX_PORT} ${NGINX_LOG_LEVEL} ${BACKEND_URL}' \
+    < /etc/nginx/conf.d/default.conf.template > /etc/nginx/conf.d/default.conf
+
+echo "✅ Nginx配置生成完成"
+EOF
+
+RUN chmod +x /docker-entrypoint.d/30-generate-config.sh
+
 # ===== 🏃 运行阶段 =====
 FROM nginx:1.25-alpine AS runtime
 
@@ -166,51 +196,70 @@ FROM nginx:1.25-alpine AS runtime
 RUN apk add --no-cache \
     curl \
     tzdata \
+    gettext \
     && rm -rf /var/cache/apk/*
 
-# 👤 创建非特权用户
-RUN addgroup -g 1001 -S appgroup && \
-    adduser -u 1001 -S appuser -G appgroup
+# 👤 创建应用用户（使用与nginx相同的用户ID）
+RUN addgroup -g 101 -S appgroup && \
+    adduser -u 101 -S appuser -G appgroup
 
-# 📁 创建必要目录
-RUN mkdir -p /var/cache/nginx /var/run /var/log/nginx && \
-    chown -R appuser:appgroup /var/cache/nginx /var/run /var/log/nginx /usr/share/nginx/html
+# 📁 创建必要目录并设置权限
+RUN mkdir -p /var/cache/nginx/client_temp \
+             /var/cache/nginx/proxy_temp \
+             /var/cache/nginx/fastcgi_temp \
+             /var/cache/nginx/uwsgi_temp \
+             /var/cache/nginx/scgi_temp \
+             /var/log/nginx \
+             /var/run \
+             /usr/share/nginx/html && \
+    chown -R appuser:appgroup /var/cache/nginx \
+                              /var/log/nginx \
+                              /var/run \
+                              /usr/share/nginx/html \
+                              /etc/nginx/conf.d && \
+    chmod -R 755 /var/cache/nginx \
+                 /var/log/nginx \
+                 /var/run \
+                 /usr/share/nginx/html
 
-# 🔧 从nginx配置阶段复制配置文件
-COPY --from=nginx-config /etc/nginx/nginx.conf /etc/nginx/nginx.conf
-COPY --from=nginx-config /etc/nginx/conf.d/default.conf /etc/nginx/conf.d/default.conf
+# 🔧 从nginx配置阶段复制配置模板和脚本
+COPY --from=nginx-config /etc/nginx/nginx.conf.template /etc/nginx/nginx.conf.template
+COPY --from=nginx-config /etc/nginx/conf.d/default.conf.template /etc/nginx/conf.d/default.conf.template
+COPY --from=nginx-config /docker-entrypoint.d/30-generate-config.sh /docker-entrypoint.d/30-generate-config.sh
 
 # 📦 从构建阶段复制静态文件
 COPY --from=builder --chown=appuser:appgroup /build/dist/ /usr/share/nginx/html/
 
-# 🔧 修复权限
-RUN chmod -R 755 /usr/share/nginx/html
-
-# 🌍 设置环境变量
+# 🌍 设置环境变量（默认值）
 ENV NODE_ENV=production
+ENV NGINX_USER=appuser
+ENV NGINX_PORT=8080
 ENV NGINX_WORKER_PROCESSES=auto
 ENV NGINX_WORKER_CONNECTIONS=1024
+ENV NGINX_LOG_LEVEL=warn
+ENV BACKEND_URL=http://backend:3000
 
-# 🔌 暴露端口
-EXPOSE 80
+# 🔌 暴露非特权端口
+EXPOSE 8080
 
 # 👤 切换到非特权用户
 USER appuser:appgroup
 
-# 🏥 健康检查
+# 🏥 健康检查（使用环境变量端口）
 HEALTHCHECK --interval=30s --timeout=10s --start-period=5s --retries=3 \
-    CMD curl -f http://localhost:80/health || exit 1
+    CMD curl -f http://localhost:${NGINX_PORT}/health || exit 1
 
 # 🏷️ 镜像标签
 LABEL maintainer="hellocplusplus0" \
       app="v7-web" \
       version="latest" \
       architecture="podman" \
-      description="V7 Web - SolidJS + Web v7 Architecture" \
+      description="V7 Web - SolidJS + Web v7 Architecture (Non-privileged)" \
       node.version="18" \
-      nginx.version="1.25"
+      nginx.version="1.25" \
+      nginx.port="8080"
 
-# 🚀 启动命令
+# 🚀 启动命令（nginx会自动执行entrypoint脚本）
 CMD ["nginx", "-g", "daemon off;"]
 
 # 📝 构建说明
@@ -221,15 +270,16 @@ CMD ["nginx", "-g", "daemon off;"]
 # 🚀 运行命令:
 #   podman run -d \
 #     --name v7-web \
-#     -p 80:80 \
-#     -v ./logs:/var/log/nginx:Z \
+#     -p 8080:8080 \
+#     -e NGINX_PORT=8080 \
+#     -e BACKEND_URL=http://backend:3000 \
 #     v7-web:latest
 # 
 # 🔍 镜像信息:
 #   podman inspect v7-web:latest
 # 
 # 🧪 测试健康检查:
-#   podman exec v7-web curl -f http://localhost:80/health
+#   podman exec v7-web curl -f http://localhost:8080/health
 # 
 # 📊 性能优化特性:
 # - 多阶段构建 (减小最终镜像大小)
@@ -240,8 +290,16 @@ CMD ["nginx", "-g", "daemon off;"]
 # - 依赖缓存优化
 # 
 # 🔒 安全特性:
-# - 非特权用户运行
+# - 非特权用户运行 (appuser:101)
+# - 非特权端口 (8080)
 # - 安全头配置
 # - 隐藏文件保护
 # - Content Security Policy
-# - 健康检查内置 
+# - 环境变量配置支持
+# 
+# 🎯 最佳实践特性:
+# - 支持环境变量动态配置
+# - 非特权端口避免权限问题
+# - 正确的文件权限设置
+# - 健康检查适配动态端口
+# - 符合容器安全标准 

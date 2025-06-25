@@ -82,7 +82,7 @@ RUN chmod +x /app/backend
 
 # 🌍 设置环境变量
 ENV RUST_LOG=info
-ENV DATABASE_URL=sqlite:./data/prod.db
+ENV DATABASE_URL=sqlite:/app/data/prod.db
 ENV PORT=3000
 ENV RUST_BACKTRACE=1
 

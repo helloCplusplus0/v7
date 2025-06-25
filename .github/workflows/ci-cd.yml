@@ -8,10 +8,11 @@ on:
     branches: [ main, develop ]
 
 env:
-  # 容器镜像配置 - 使用真实配置
+  # 容器镜像配置 - 修复认证问题
   REGISTRY: ghcr.io
   REGISTRY_USER: ${{ github.actor }}
-  REGISTRY_PASSWORD: ${{ secrets.GITHUB_TOKEN }}
+  # 使用PAT token而非GITHUB_TOKEN以避免权限问题
+  REGISTRY_PASSWORD: ${{ secrets.GHCR_TOKEN || secrets.GITHUB_TOKEN }}
   
   # 镜像地址 - 基于真实Secrets配置
   BACKEND_IMAGE_BASE: ${{ secrets.BACKEND_IMAGE || 'ghcr.io/hellocplusplus0/v7/backend' }}
@@ -274,6 +275,19 @@ jobs:
           registry: ${{ env.REGISTRY }}
           username: ${{ env.REGISTRY_USER }}
           password: ${{ env.REGISTRY_PASSWORD }}
+          
+      - name: 🔍 Verify Registry Authentication
+        run: |
+          echo "🔍 验证容器注册表认证..."
+          echo "Registry: ${{ env.REGISTRY }}"
+          echo "User: ${{ env.REGISTRY_USER }}"
+          
+          # 测试认证是否成功
+          if docker info | grep -q "Username: ${{ env.REGISTRY_USER }}"; then
+            echo "✅ Docker认证成功"
+          else
+            echo "⚠️ Docker认证状态未知，继续尝试构建"
+          fi
 
       - name: 🐳 Set up Docker Buildx
         uses: docker/setup-buildx-action@v3
@@ -418,10 +432,14 @@ jobs:
           BACKEND_IMAGE=${{ needs.environment-check.outputs.backend-image }}
           WEB_IMAGE=${{ needs.environment-check.outputs.web-image }}
           
-          # 🔧 应用配置 - 使用真实Secrets
-          DATABASE_URL=${{ secrets.DATABASE_URL || 'sqlite:./data/prod.db' }}
+          # 🔧 应用配置 - 使用真实Secrets，修复数据库路径
+          DATABASE_URL=${{ secrets.DATABASE_URL || 'sqlite:/app/data/prod.db' }}
           RUST_LOG=${{ secrets.RUST_LOG || 'info' }}
           NODE_ENV=${{ secrets.NODE_ENV || 'production' }}
+          
+          # 🔐 容器注册表认证信息
+          GHCR_TOKEN=${{ secrets.GHCR_TOKEN || secrets.GITHUB_TOKEN }}
+          REGISTRY_USER=${{ github.actor }}
           
           # 🌐 网络配置
           BACKEND_PORT=3000
@@ -476,6 +494,40 @@ jobs:
             ${{ secrets.SERVER_USER }}@${{ secrets.SERVER_HOST }}:${{ secrets.DEPLOY_PATH }}/
           
           echo "✅ 文件上传完成"
+
+      - name: 🔐 Setup Container Registry Authentication
+        run: |
+          echo "🔐 在服务器上配置容器注册表认证..."
+          
+          # 创建认证脚本
+          cat > setup-auth.sh << 'SCRIPT_EOF'
+          #!/bin/bash
+          echo "🔐 配置GitHub Container Registry认证..."
+          
+          # 从环境变量获取认证信息
+          if [[ -n "$GHCR_TOKEN" && -n "$REGISTRY_USER" ]]; then
+            echo "$GHCR_TOKEN" | podman login ghcr.io -u "$REGISTRY_USER" --password-stdin
+            if [[ $? -eq 0 ]]; then
+              echo "✅ GitHub Container Registry认证成功"
+            else
+              echo "❌ GitHub Container Registry认证失败"
+              exit 1
+            fi
+          else
+            echo "⚠️ 缺少认证信息，使用默认认证"
+          fi
+          SCRIPT_EOF
+          
+          chmod +x setup-auth.sh
+          
+          # 上传并执行认证脚本
+          scp -i ~/.ssh/id_rsa -P ${{ secrets.SERVER_PORT || 22 }} -o StrictHostKeyChecking=no \
+            setup-auth.sh \
+            ${{ secrets.SERVER_USER }}@${{ secrets.SERVER_HOST }}:${{ secrets.DEPLOY_PATH }}/
+          
+          ssh -i ~/.ssh/id_rsa -p ${{ secrets.SERVER_PORT || 22 }} -o StrictHostKeyChecking=no \
+            ${{ secrets.SERVER_USER }}@${{ secrets.SERVER_HOST }} \
+            "cd ${{ secrets.DEPLOY_PATH }} && source .env.production && bash setup-auth.sh"
 
       - name: 🚀 Execute Deployment
         run: |
