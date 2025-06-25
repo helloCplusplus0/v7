@@ -145,8 +145,16 @@ jobs:
             TAG="${{ github.ref_name }}"
           fi
           
-          # 使用小写用户名构建镜像地址（从前一个步骤的输出获取）
+          # 使用小写用户名构建镜像地址（优先从步骤输出获取，备用直接计算）
           REGISTRY_USER_LOWER="${{ steps.registry-setup.outputs.registry-user-lower }}"
+          
+          # 如果步骤输出为空，直接计算小写用户名作为备用
+          if [[ -z "$REGISTRY_USER_LOWER" ]]; then
+            echo "⚠️ 步骤输出为空，使用备用方法计算小写用户名"
+            REGISTRY_USER_LOWER="${{ github.repository_owner }}"
+            REGISTRY_USER_LOWER=$(echo "$REGISTRY_USER_LOWER" | tr '[:upper:]' '[:lower:]')
+            echo "🔧 备用计算结果: $REGISTRY_USER_LOWER"
+          fi
           
           # 调试信息
           echo "🔍 调试镜像标签构建:"
@@ -179,6 +187,7 @@ jobs:
           BACKEND_IMAGE="${BACKEND_BASE}:${TAG}"
           WEB_IMAGE="${WEB_BASE}:${TAG}"
           
+          # 设置 GitHub 输出
           echo "backend-image=${BACKEND_IMAGE}" >> $GITHUB_OUTPUT
           echo "web-image=${WEB_IMAGE}" >> $GITHUB_OUTPUT
           
@@ -190,6 +199,15 @@ jobs:
           echo "  前端基础: ${WEB_BASE}"
           echo "  📦 最终后端镜像: ${BACKEND_IMAGE}"
           echo "  🌐 最终前端镜像: ${WEB_IMAGE}"
+          
+          # 验证输出文件内容
+          echo "🔍 验证 GITHUB_OUTPUT 文件内容:"
+          if [[ -f "$GITHUB_OUTPUT" ]]; then
+            echo "📄 输出文件存在，内容如下:"
+            cat "$GITHUB_OUTPUT" | tail -10
+          else
+            echo "❌ 输出文件不存在: $GITHUB_OUTPUT"
+          fi
           
           # 验证输出不为空
           if [[ -z "${BACKEND_IMAGE}" ]]; then
@@ -470,6 +488,38 @@ jobs:
           name: frontend-dist
           path: web/dist/
 
+      - name: 🔍 Debug Job Dependencies
+        run: |
+          echo "🔍 调试 job 依赖关系:"
+          echo "  需要的 job: environment-check"
+          echo "  environment-check job 结果: ${{ needs.environment-check.result }}"
+          echo "  environment-check job 输出:"
+          echo "    backend-image: '${{ needs.environment-check.outputs.backend-image }}'"
+          echo "    web-image: '${{ needs.environment-check.outputs.web-image }}'"
+          echo "    registry-user-lower: '${{ needs.environment-check.outputs.registry-user-lower }}'"
+          echo "    auth-method: '${{ needs.environment-check.outputs.auth-method }}'"
+          echo ""
+          
+          # 检查关键输出是否为空
+          if [[ -z "${{ needs.environment-check.outputs.backend-image }}" ]]; then
+            echo "❌ 警告: backend-image 输出为空"
+          fi
+          
+          if [[ -z "${{ needs.environment-check.outputs.web-image }}" ]]; then
+            echo "❌ 警告: web-image 输出为空"
+          fi
+          
+          if [[ -z "${{ needs.environment-check.outputs.registry-user-lower }}" ]]; then
+            echo "❌ 警告: registry-user-lower 输出为空"
+          fi
+          
+          echo "🔍 GitHub 上下文信息:"
+          echo "  repository: ${{ github.repository }}"
+          echo "  repository_owner: ${{ github.repository_owner }}"
+          echo "  actor: ${{ github.actor }}"
+          echo "  ref: ${{ github.ref }}"
+          echo "  ref_name: ${{ github.ref_name }}"
+        
       - name: 🔍 Final Image Tag Verification
         run: |
           echo "🔍 最终镜像标签验证："
