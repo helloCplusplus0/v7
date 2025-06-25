@@ -538,14 +538,57 @@ jobs:
           echo "  后端镜像: '$BACKEND_TAG'"
           echo "  前端镜像: '$WEB_TAG'"
           
+          # 如果镜像标签为空，尝试重新构建
+          if [[ -z "$BACKEND_TAG" ]] || [[ -z "$WEB_TAG" ]]; then
+            echo "⚠️ 镜像标签为空，尝试重新构建..."
+            
+            # 获取基础信息
+            REGISTRY_USER_LOWER="${{ needs.environment-check.outputs.registry-user-lower }}"
+            
+            # 如果小写用户名也为空，直接计算
+            if [[ -z "$REGISTRY_USER_LOWER" ]]; then
+              REGISTRY_USER_LOWER="${{ github.repository_owner }}"
+              REGISTRY_USER_LOWER=$(echo "$REGISTRY_USER_LOWER" | tr '[:upper:]' '[:lower:]')
+              echo "🔧 重新计算小写用户名: $REGISTRY_USER_LOWER"
+            fi
+            
+            # 基于分支设置标签
+            if [[ "${{ github.ref }}" == "refs/heads/main" ]]; then
+              TAG="latest"
+            elif [[ "${{ github.ref }}" == "refs/heads/develop" ]]; then
+              TAG="develop"
+            else
+              TAG="${{ github.ref_name }}"
+            fi
+            
+            # 重新构建镜像标签
+            if [[ -z "$BACKEND_TAG" ]]; then
+              BACKEND_TAG="ghcr.io/${REGISTRY_USER_LOWER}/v7/backend:${TAG}"
+              echo "🔧 重新构建后端标签: $BACKEND_TAG"
+            fi
+            
+            if [[ -z "$WEB_TAG" ]]; then
+              WEB_TAG="ghcr.io/${REGISTRY_USER_LOWER}/v7/web:${TAG}"
+              echo "🔧 重新构建前端标签: $WEB_TAG"
+            fi
+          fi
+          
           # 最后的安全检查
           if [[ -z "$BACKEND_TAG" ]]; then
             echo "❌ 致命错误：后端镜像标签为空！"
+            echo "🔍 调试信息:"
+            echo "  github.repository_owner: ${{ github.repository_owner }}"
+            echo "  github.ref: ${{ github.ref }}"
+            echo "  needs.environment-check.result: ${{ needs.environment-check.result }}"
             exit 1
           fi
           
           if [[ -z "$WEB_TAG" ]]; then
             echo "❌ 致命错误：前端镜像标签为空！"
+            echo "🔍 调试信息:"
+            echo "  github.repository_owner: ${{ github.repository_owner }}"
+            echo "  github.ref: ${{ github.ref }}"
+            echo "  needs.environment-check.result: ${{ needs.environment-check.result }}"
             exit 1
           fi
           
@@ -560,7 +603,20 @@ jobs:
             exit 1
           fi
           
+          # 验证标签不包含大写字母
+          if [[ "$BACKEND_TAG" =~ [A-Z] ]]; then
+            echo "❌ 后端镜像标签包含大写字母: $BACKEND_TAG"
+            exit 1
+          fi
+          
+          if [[ "$WEB_TAG" =~ [A-Z] ]]; then
+            echo "❌ 前端镜像标签包含大写字母: $WEB_TAG"
+            exit 1
+          fi
+          
           echo "✅ 镜像标签验证通过"
+          echo "  📦 后端镜像: $BACKEND_TAG"
+          echo "  🌐 前端镜像: $WEB_TAG"
           
           # 保存到环境变量
           echo "FINAL_BACKEND_TAG=$BACKEND_TAG" >> $GITHUB_ENV
@@ -572,7 +628,7 @@ jobs:
           context: ./backend
           file: ./backend/Dockerfile
           push: true
-          tags: ${{ needs.environment-check.outputs.backend-image }}
+          tags: ${{ env.FINAL_BACKEND_TAG }}
           cache-from: type=gha
           cache-to: type=gha,mode=max
           platforms: linux/amd64
@@ -590,7 +646,7 @@ jobs:
           context: ./web
           file: ./web/Dockerfile
           push: true
-          tags: ${{ needs.environment-check.outputs.web-image }}
+          tags: ${{ env.FINAL_WEB_TAG }}
           cache-from: type=gha
           cache-to: type=gha,mode=max
           platforms: linux/amd64
@@ -607,8 +663,8 @@ jobs:
           echo "🔍 构建后验证..."
           
           # 验证镜像是否成功推送
-          BACKEND_TAG="${{ needs.environment-check.outputs.backend-image }}"
-          WEB_TAG="${{ needs.environment-check.outputs.web-image }}"
+          BACKEND_TAG="${{ env.FINAL_BACKEND_TAG }}"
+          WEB_TAG="${{ env.FINAL_WEB_TAG }}"
           
           echo "📦 验证镜像推送状态:"
           echo "  后端: $BACKEND_TAG"
@@ -636,8 +692,8 @@ jobs:
           echo "📝 构建总结"
           echo "=============="
           echo "🔑 认证方式: ${{ needs.environment-check.outputs.auth-method }}"
-          echo "🦀 后端镜像: ${{ needs.environment-check.outputs.backend-image }}"
-          echo "🌐 前端镜像: ${{ needs.environment-check.outputs.web-image }}"
+          echo "🦀 后端镜像: ${{ env.FINAL_BACKEND_TAG }}"
+          echo "🌐 前端镜像: ${{ env.FINAL_WEB_TAG }}"
           echo "🏷️ Git SHA: ${{ github.sha }}"
           echo "🌿 分支: ${{ github.ref_name }}"
           echo "📅 构建时间: $(date -u +%Y-%m-%dT%H:%M:%SZ)"
