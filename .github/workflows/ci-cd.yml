@@ -845,43 +845,60 @@ jobs:
         run: |
           echo "🔐 在服务器上配置容器注册表认证..."
           
-          # 创建认证脚本
+          # 创建认证脚本，使用GitHub Token
           cat > setup-auth.sh << 'SCRIPT_EOF'
           #!/bin/bash
           echo "🔐 配置GitHub Container Registry认证..."
           
-          # 从环境变量获取认证信息
-          if [[ -n "$GHCR_TOKEN" && -n "$REGISTRY_USER" ]]; then
+          # 使用GitHub Token进行认证
+          GHCR_TOKEN="${GITHUB_TOKEN}"
+          REGISTRY_USER="hellocplusplus0"
+          
+          if [[ -n "$GHCR_TOKEN" ]]; then
+            echo "🔑 使用GitHub Token认证GHCR..."
             echo "$GHCR_TOKEN" | podman login ghcr.io -u "$REGISTRY_USER" --password-stdin
             if [[ $? -eq 0 ]]; then
               echo "✅ GitHub Container Registry认证成功"
+              
+              # 验证认证状态
+              if podman login ghcr.io --get-login 2>/dev/null | grep -q "$REGISTRY_USER"; then
+                echo "✅ 认证状态验证成功"
+              else
+                echo "⚠️ 认证状态验证异常，但继续执行"
+              fi
             else
               echo "❌ GitHub Container Registry认证失败"
               exit 1
             fi
           else
-            echo "⚠️ 缺少认证信息，使用默认认证"
+            echo "❌ 缺少GITHUB_TOKEN，无法认证"
+            exit 1
           fi
           SCRIPT_EOF
           
           chmod +x setup-auth.sh
           
-          # 上传并执行认证脚本
+          # 上传认证脚本
           scp -i ~/.ssh/id_rsa -P ${{ secrets.SERVER_PORT || 22 }} -o StrictHostKeyChecking=no \
             setup-auth.sh \
             ${{ secrets.SERVER_USER }}@${{ secrets.SERVER_HOST }}:${{ secrets.DEPLOY_PATH }}/
           
+          # 在服务器上执行认证，传递GitHub Token
           ssh -i ~/.ssh/id_rsa -p ${{ secrets.SERVER_PORT || 22 }} -o StrictHostKeyChecking=no \
             ${{ secrets.SERVER_USER }}@${{ secrets.SERVER_HOST }} \
-            "cd ${{ secrets.DEPLOY_PATH }} && source .env.production && bash setup-auth.sh"
+            "cd ${{ secrets.DEPLOY_PATH }} && GITHUB_TOKEN='${{ secrets.GITHUB_TOKEN }}' bash setup-auth.sh"
 
       - name: 🚀 Execute Deployment
         run: |
           echo "🚀 在服务器上执行部署..."
           
+          # 在服务器上执行部署，传递必要的环境变量
           ssh -i ~/.ssh/id_rsa -p ${{ secrets.SERVER_PORT || 22 }} -o StrictHostKeyChecking=no \
             ${{ secrets.SERVER_USER }}@${{ secrets.SERVER_HOST }} \
-            "cd ${{ secrets.DEPLOY_PATH }} && bash deploy.sh"
+            "cd ${{ secrets.DEPLOY_PATH }} && \
+             GITHUB_TOKEN='${{ secrets.GITHUB_TOKEN }}' \
+             GHCR_TOKEN='${{ secrets.GITHUB_TOKEN }}' \
+             bash deploy.sh"
 
       - name: 🏥 Comprehensive Health Check
         run: |

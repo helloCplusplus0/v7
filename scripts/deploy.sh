@@ -123,9 +123,96 @@ backup_data() {
     echo "$backup_name" > "$BACKUP_DIR/latest_backup"
 }
 
+# 🔐 容器注册表认证
+authenticate_registry() {
+    step "认证容器注册表..."
+    
+    # 检查是否已经认证
+    if podman login ghcr.io --get-login 2>/dev/null | grep -q "hellocplusplus0"; then
+        log "已经认证到GHCR"
+        return 0
+    fi
+    
+    # 尝试多种认证方式
+    local auth_success=false
+    
+    # 方式1: 使用环境变量中的token
+    if [[ -n "${GHCR_TOKEN:-}" ]]; then
+        info "尝试使用GHCR_TOKEN认证..."
+        if echo "$GHCR_TOKEN" | podman login ghcr.io -u hellocplusplus0 --password-stdin; then
+            log "使用GHCR_TOKEN认证成功"
+            auth_success=true
+        else
+            warn "GHCR_TOKEN认证失败"
+        fi
+    fi
+    
+    # 方式2: 使用GitHub Token
+    if [[ "$auth_success" != "true" && -n "${GITHUB_TOKEN:-}" ]]; then
+        info "尝试使用GITHUB_TOKEN认证..."
+        if echo "$GITHUB_TOKEN" | podman login ghcr.io -u hellocplusplus0 --password-stdin; then
+            log "使用GITHUB_TOKEN认证成功"
+            auth_success=true
+        else
+            warn "GITHUB_TOKEN认证失败"
+        fi
+    fi
+    
+    # 方式3: 检查是否有保存的认证信息
+    if [[ "$auth_success" != "true" ]]; then
+        info "检查本地保存的认证信息..."
+        if podman login ghcr.io --get-login >/dev/null 2>&1; then
+            log "使用本地保存的认证信息"
+            auth_success=true
+        fi
+    fi
+    
+    # 方式4: 尝试从文件读取token
+    local token_file="$HOME/.ghcr_token"
+    if [[ "$auth_success" != "true" && -f "$token_file" ]]; then
+        info "尝试从文件读取token: $token_file"
+        if GHCR_TOKEN=$(cat "$token_file") && [[ -n "$GHCR_TOKEN" ]]; then
+            if echo "$GHCR_TOKEN" | podman login ghcr.io -u hellocplusplus0 --password-stdin; then
+                log "使用文件token认证成功"
+                auth_success=true
+            fi
+        fi
+    fi
+    
+    if [[ "$auth_success" != "true" ]]; then
+        error "容器注册表认证失败"
+        echo ""
+        echo "🔧 解决方案："
+        echo "1. 设置环境变量 GHCR_TOKEN 或 GITHUB_TOKEN"
+        echo "2. 手动执行: podman login ghcr.io -u hellocplusplus0"
+        echo "3. 将token保存到文件: ~/.ghcr_token"
+        echo ""
+        echo "📝 获取token方法："
+        echo "1. 访问 https://github.com/settings/tokens"
+        echo "2. 创建Personal Access Token"
+        echo "3. 勾选权限: write:packages, read:packages"
+        echo ""
+        return 1
+    fi
+    
+    # 验证认证状态
+    if podman login ghcr.io --get-login 2>/dev/null | grep -q "hellocplusplus0"; then
+        log "容器注册表认证验证成功"
+    else
+        error "认证验证失败"
+        return 1
+    fi
+}
+
 # 🐳 拉取和验证镜像
 pull_images() {
     step "拉取最新镜像..."
+    
+    # 执行认证
+    if ! authenticate_registry; then
+        error "容器注册表认证失败，无法拉取镜像"
+        exit 1
+    fi
     
     # 拉取后端镜像
     if ! podman pull "$BACKEND_IMAGE"; then
