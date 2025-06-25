@@ -199,9 +199,9 @@ RUN apk add --no-cache \
     gettext \
     && rm -rf /var/cache/apk/*
 
-# 👤 创建应用用户（使用与nginx相同的用户ID）
-RUN addgroup -g 101 -S appgroup && \
-    adduser -u 101 -S appuser -G appgroup
+# 👤 创建应用用户（避免ID冲突）
+RUN addgroup -S appgroup && \
+    adduser -S appuser -G appgroup
 
 # 📁 创建必要目录并设置权限
 RUN mkdir -p /var/cache/nginx/client_temp \
@@ -290,7 +290,7 @@ CMD ["nginx", "-g", "daemon off;"]
 # - 依赖缓存优化
 # 
 # 🔒 安全特性:
-# - 非特权用户运行 (appuser:101)
+# - 非特权用户运行 (appuser:appgroup)
 # - 非特权端口 (8080)
 # - 安全头配置
 # - 隐藏文件保护
