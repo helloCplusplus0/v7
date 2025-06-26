@@ -31,8 +31,9 @@ RUN apk add --no-cache \
 # 🔧 复制nginx配置文件
 COPY nginx.conf /etc/nginx/nginx.conf
 
-# 👤 创建nginxuser用户（基于Docker Forums最佳实践）
-RUN adduser --system --uid 1002 --no-create-home --disabled-login --group nginxuser
+# 👤 创建nginxuser用户（基于Docker Forums最佳实践，适配Alpine Linux）
+RUN addgroup -g 1002 -S nginxuser && \
+    adduser -u 1002 -S -G nginxuser -H -D nginxuser
 
 # 📁 设置nginx目录权限（基于专家建议）
 RUN chown -R nginxuser:nginxuser /var/cache/nginx \
