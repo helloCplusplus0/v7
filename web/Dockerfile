@@ -31,25 +31,31 @@ RUN apk add --no-cache \
 RUN addgroup -g 1002 -S appgroup && \
     adduser -u 1002 -S appuser -G appgroup
 
-# 📁 创建应用目录并设置权限
-RUN mkdir -p /app/dist && \
-    chown -R appuser:appgroup /app
+# 📁 为nginx创建必要的目录和权限 - 使用标准路径
+RUN mkdir -p /var/cache/nginx/client_temp \
+             /var/cache/nginx/proxy_temp \
+             /var/cache/nginx/fastcgi_temp \
+             /var/cache/nginx/uwsgi_temp \
+             /var/cache/nginx/scgi_temp \
+             /var/log/nginx \
+             /var/run \
+             /usr/share/nginx/html && \
+    # 修改nginx配置目录权限
+    chown -R appuser:appgroup /var/cache/nginx \
+                              /var/log/nginx \
+                              /var/run \
+                              /usr/share/nginx/html \
+                              /etc/nginx/conf.d && \
+    # 创建nginx.pid文件并设置权限
+    touch /var/run/nginx.pid && \
+    chown appuser:appgroup /var/run/nginx.pid && \
+    chmod 644 /var/run/nginx.pid
 
 # 📦 复制构建产物
-COPY --from=builder --chown=appuser:appgroup /build/dist /app/dist
+COPY --from=builder --chown=appuser:appgroup /build/dist /usr/share/nginx/html
 
-# 🔧 创建非特权nginx配置
-RUN mkdir -p /tmp/nginx /var/log/nginx /var/cache/nginx && \
-    chown -R appuser:appgroup /tmp/nginx /var/log/nginx /var/cache/nginx && \
-    chmod -R 755 /tmp/nginx /var/log/nginx /var/cache/nginx
-
-# 📝 复制nginx配置文件
+# 🔧 复制nginx配置
 COPY --chown=appuser:appgroup nginx.conf /etc/nginx/nginx.conf
-
-# 🌍 设置环境变量
-ENV NODE_ENV=production
-ENV NGINX_USER=appuser
-ENV NGINX_GROUP=appgroup
 
 # 👤 切换到非特权用户
 USER appuser
@@ -58,7 +64,7 @@ USER appuser
 HEALTHCHECK --interval=30s --timeout=3s --start-period=5s --retries=3 \
     CMD curl -f http://localhost:8080/health || exit 1
 
-# 📡 暴露端口
+# 📡 暴露端口（使用8080避免特权端口）
 EXPOSE 8080
 
 # 🏃 启动命令
