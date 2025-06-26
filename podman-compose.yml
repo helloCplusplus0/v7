@@ -91,7 +91,7 @@ services:
       - NODE_ENV=${NODE_ENV:-production}
       - TZ=Asia/Shanghai
       # Nginx 配置环境变量
-      - NGINX_USER=appuser
+      - NGINX_USER=nginxuser
       - NGINX_PORT=8080
       - NGINX_WORKER_PROCESSES=auto
       - NGINX_WORKER_CONNECTIONS=1024
