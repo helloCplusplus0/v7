@@ -31,63 +31,35 @@ RUN apk add --no-cache \
 RUN addgroup -g 1002 -S appgroup && \
     adduser -u 1002 -S appuser -G appgroup
 
-# 📁 创建必要目录并设置正确权限
-RUN mkdir -p /var/cache/nginx/client_temp \
-             /var/cache/nginx/proxy_temp \
-             /var/cache/nginx/fastcgi_temp \
-             /var/cache/nginx/uwsgi_temp \
-             /var/cache/nginx/scgi_temp \
-             /var/log/nginx \
-             /var/run \
-             /usr/share/nginx/html \
-             /tmp/nginx && \
-    touch /var/log/nginx/access.log \
-          /var/log/nginx/error.log \
-          /var/run/nginx.pid && \
-    chown -R appuser:appgroup /var/cache/nginx \
-                              /var/log/nginx \
-                              /var/run \
-                              /usr/share/nginx/html \
-                              /etc/nginx \
-                              /tmp/nginx && \
-    chmod -R 755 /var/cache/nginx \
-                 /var/log/nginx \
-                 /var/run \
-                 /usr/share/nginx/html \
-                 /etc/nginx \
-                 /tmp/nginx && \
-    chmod 644 /var/log/nginx/access.log \
-              /var/log/nginx/error.log && \
-    chmod 644 /var/run/nginx.pid
+# 📁 创建应用目录并设置权限
+RUN mkdir -p /app/dist && \
+    chown -R appuser:appgroup /app
 
-# 🔧 复制静态nginx配置
+# 📦 复制构建产物
+COPY --from=builder --chown=appuser:appgroup /build/dist /app/dist
+
+# 🔧 创建非特权nginx配置
+RUN mkdir -p /tmp/nginx /var/log/nginx /var/cache/nginx && \
+    chown -R appuser:appgroup /tmp/nginx /var/log/nginx /var/cache/nginx && \
+    chmod -R 755 /tmp/nginx /var/log/nginx /var/cache/nginx
+
+# 📝 复制nginx配置文件
 COPY --chown=appuser:appgroup nginx.conf /etc/nginx/nginx.conf
-
-# 📦 从构建阶段复制静态文件
-COPY --from=builder --chown=appuser:appgroup /build/dist/ /usr/share/nginx/html/
 
 # 🌍 设置环境变量
 ENV NODE_ENV=production
-
-# 🔌 暴露非特权端口
-EXPOSE 8080
+ENV NGINX_USER=appuser
+ENV NGINX_GROUP=appgroup
 
 # 👤 切换到非特权用户
-USER appuser:appgroup
+USER appuser
 
-# 🏥 健康检查
-HEALTHCHECK --interval=30s --timeout=10s --start-period=5s --retries=3 \
+# 🚀 健康检查
+HEALTHCHECK --interval=30s --timeout=3s --start-period=5s --retries=3 \
     CMD curl -f http://localhost:8080/health || exit 1
 
-# 🏷️ 镜像标签
-LABEL maintainer="hellocplusplus0" \
-      app="v7-web" \
-      version="latest" \
-      architecture="podman" \
-      description="V7 Web - SolidJS + Web v7 Architecture (Fixed Permissions)" \
-      node.version="18" \
-      nginx.version="1.25" \
-      nginx.port="8080"
+# 📡 暴露端口
+EXPOSE 8080
 
-# 🚀 启动命令
+# 🏃 启动命令
 CMD ["nginx", "-g", "daemon off;"] 
