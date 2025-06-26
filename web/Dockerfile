@@ -21,51 +21,34 @@ RUN npm run build
 # ===== 🏃 运行阶段 =====
 FROM nginx:1.25-alpine AS runtime
 
-# 📦 安装运行时依赖
+# 📦 安装运行时依赖和dumb-init
 RUN apk add --no-cache \
     curl \
     tzdata \
+    dumb-init \
     && rm -rf /var/cache/apk/*
 
-# 👤 创建应用用户（使用与部署环境一致的ID）
-RUN addgroup -g 1002 -S appgroup && \
-    adduser -u 1002 -S appuser -G appgroup
+# 🔧 复制nginx配置文件
+COPY nginx.conf /etc/nginx/nginx.conf
 
-# 📁 为nginx创建必要的目录和权限 - 使用标准路径
-RUN mkdir -p /var/cache/nginx/client_temp \
-             /var/cache/nginx/proxy_temp \
-             /var/cache/nginx/fastcgi_temp \
-             /var/cache/nginx/uwsgi_temp \
-             /var/cache/nginx/scgi_temp \
-             /var/log/nginx \
-             /var/run \
-             /usr/share/nginx/html && \
-    # 修改nginx配置目录权限
-    chown -R appuser:appgroup /var/cache/nginx \
-                              /var/log/nginx \
-                              /var/run \
-                              /usr/share/nginx/html \
-                              /etc/nginx/conf.d && \
-    # 创建nginx.pid文件并设置权限
-    touch /var/run/nginx.pid && \
-    chown appuser:appgroup /var/run/nginx.pid && \
-    chmod 644 /var/run/nginx.pid
+# 👤 创建nginxuser用户（基于Docker Forums最佳实践）
+RUN adduser --system --uid 1002 --no-create-home --disabled-login --group nginxuser
 
-# 📦 复制构建产物
-COPY --from=builder --chown=appuser:appgroup /build/dist /usr/share/nginx/html
+# 📁 设置nginx目录权限（基于专家建议）
+RUN chown -R nginxuser:nginxuser /var/cache/nginx \
+    && chown -R nginxuser:nginxuser /var/log/nginx \
+    && chown -R nginxuser:nginxuser /etc/nginx/conf.d \
+    && touch /var/run/nginx.pid \
+    && chown -R nginxuser:nginxuser /var/run/nginx.pid
 
-# 🔧 复制nginx配置
-COPY --chown=appuser:appgroup nginx.conf /etc/nginx/nginx.conf
+# 📦 复制构建产物到nginx默认目录
+COPY --from=builder --chown=nginxuser:nginxuser /build/dist /usr/share/nginx/html
 
 # 👤 切换到非特权用户
-USER appuser
+USER nginxuser
 
-# 🚀 健康检查
-HEALTHCHECK --interval=30s --timeout=3s --start-period=5s --retries=3 \
-    CMD curl -f http://localhost:8080/health || exit 1
-
-# 📡 暴露端口（使用8080避免特权端口）
+# 🌐 暴露8080端口（非特权端口）
 EXPOSE 8080
 
-# 🏃 启动命令
-CMD ["nginx", "-g", "daemon off;"] 
+# 🚀 使用dumb-init启动nginx
+ENTRYPOINT ["dumb-init", "nginx", "-g", "daemon off;"] 
