@@ -14,7 +14,7 @@ import type {
 } from './types';
 
 class CrudApiClient extends BaseApiClient {
-  private readonly itemsPath = '/api/items';
+  private readonly itemsPath = '/items';
 
   /**
    * 创建新项目

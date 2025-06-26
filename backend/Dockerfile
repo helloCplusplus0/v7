@@ -63,9 +63,9 @@ RUN apk add --no-cache \
     tzdata \
     && rm -rf /var/cache/apk/*
 
-# 👤 创建非特权用户
-RUN addgroup -g 1001 -S appgroup && \
-    adduser -u 1001 -S appuser -G appgroup
+# 👤 创建非特权用户 - 修复用户ID与部署环境一致
+RUN addgroup -g 1002 -S appgroup && \
+    adduser -u 1002 -S appuser -G appgroup
 
 # 📁 创建应用目录
 RUN mkdir -p /app/{data,logs,config} && \

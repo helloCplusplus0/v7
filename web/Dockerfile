@@ -199,9 +199,9 @@ RUN apk add --no-cache \
     gettext \
     && rm -rf /var/cache/apk/*
 
-# 👤 创建应用用户（避免ID冲突）
-RUN addgroup -S appgroup && \
-    adduser -S appuser -G appgroup
+# 👤 创建应用用户（使用与部署环境一致的ID）
+RUN addgroup -g 1002 -S appgroup && \
+    adduser -u 1002 -S appuser -G appgroup
 
 # 📁 创建必要目录并设置权限
 RUN mkdir -p /var/cache/nginx/client_temp \
