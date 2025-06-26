@@ -31,7 +31,7 @@ RUN apk add --no-cache \
 RUN addgroup -g 1002 -S appgroup && \
     adduser -u 1002 -S appuser -G appgroup
 
-# 📁 创建必要目录并设置权限
+# 📁 创建必要目录并设置正确权限
 RUN mkdir -p /var/cache/nginx/client_temp \
              /var/cache/nginx/proxy_temp \
              /var/cache/nginx/fastcgi_temp \
@@ -39,17 +39,26 @@ RUN mkdir -p /var/cache/nginx/client_temp \
              /var/cache/nginx/scgi_temp \
              /var/log/nginx \
              /var/run \
-             /usr/share/nginx/html && \
+             /usr/share/nginx/html \
+             /tmp/nginx && \
+    touch /var/log/nginx/access.log \
+          /var/log/nginx/error.log \
+          /var/run/nginx.pid && \
     chown -R appuser:appgroup /var/cache/nginx \
                               /var/log/nginx \
                               /var/run \
                               /usr/share/nginx/html \
-                              /etc/nginx && \
+                              /etc/nginx \
+                              /tmp/nginx && \
     chmod -R 755 /var/cache/nginx \
                  /var/log/nginx \
                  /var/run \
                  /usr/share/nginx/html \
-                 /etc/nginx
+                 /etc/nginx \
+                 /tmp/nginx && \
+    chmod 644 /var/log/nginx/access.log \
+              /var/log/nginx/error.log && \
+    chmod 644 /var/run/nginx.pid
 
 # 🔧 复制静态nginx配置
 COPY --chown=appuser:appgroup nginx.conf /etc/nginx/nginx.conf
@@ -75,7 +84,7 @@ LABEL maintainer="hellocplusplus0" \
       app="v7-web" \
       version="latest" \
       architecture="podman" \
-      description="V7 Web - SolidJS + Web v7 Architecture (Simplified)" \
+      description="V7 Web - SolidJS + Web v7 Architecture (Fixed Permissions)" \
       node.version="18" \
       nginx.version="1.25" \
       nginx.port="8080"
