@@ -4,9 +4,9 @@ FROM node:18-alpine AS builder
 # 📦 设置工作目录
 WORKDIR /build
 
-# 🔧 复制package文件并安装依赖
+# 🔧 复制package文件并安装所有依赖（包括开发依赖）
 COPY package*.json ./
-RUN npm ci --only=production
+RUN npm ci
 
 # 📦 复制源代码
 COPY . .
