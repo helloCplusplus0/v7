@@ -44,7 +44,7 @@ describe('BaseApiClient', () => {
       const result = await client.testGet('/test');
 
       expect(mockFetch).toHaveBeenCalledWith(
-        'http://localhost:3000/test',
+        '/api/test',
         expect.objectContaining({
           headers: expect.objectContaining({
             'Content-Type': 'application/json',
@@ -66,7 +66,7 @@ describe('BaseApiClient', () => {
       const result = await client.testPost('/test', postData);
 
       expect(mockFetch).toHaveBeenCalledWith(
-        'http://localhost:3000/test',
+        '/api/test',
         expect.objectContaining({
           method: 'POST',
           body: JSON.stringify(postData),
@@ -90,7 +90,7 @@ describe('BaseApiClient', () => {
       const result = await client.testPut('/test/1', putData);
 
       expect(mockFetch).toHaveBeenCalledWith(
-        'http://localhost:3000/test/1',
+        '/api/test/1',
         expect.objectContaining({
           method: 'PUT',
           body: JSON.stringify(putData),
@@ -110,7 +110,7 @@ describe('BaseApiClient', () => {
       const result = await client.testDelete('/test/1');
 
       expect(mockFetch).toHaveBeenCalledWith(
-        'http://localhost:3000/test/1',
+        '/api/test/1',
         expect.objectContaining({
           method: 'DELETE',
         })
@@ -157,7 +157,7 @@ describe('BaseApiClient', () => {
       await client.testGet('/test');
 
       expect(mockFetch).toHaveBeenCalledWith(
-        'http://localhost:3000/test',
+        '/api/test',
         expect.objectContaining({
           headers: expect.objectContaining({
             'Authorization': 'Bearer test-token',

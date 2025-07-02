@@ -2,6 +2,9 @@ import '@testing-library/jest-dom';
 import { beforeAll, afterEach, afterAll, vi } from 'vitest';
 import { cleanup } from '@solidjs/testing-library';
 
+// 设置测试环境变量，确保API路径与生产环境一致
+process.env.VITE_API_BASE_URL = '/api';
+
 // Mock fetch for tests that don't use MSW
 global.fetch = vi.fn();
 

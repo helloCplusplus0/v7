@@ -45,7 +45,7 @@ describe('CrudApiClient', () => {
       const result = await crudApi.createItem(createData);
 
       expect(result).toEqual({
-        url: '/api/items',
+        url: '/items',
         method: 'POST',
         data: createData
       });
@@ -60,7 +60,7 @@ describe('CrudApiClient', () => {
       const result = await crudApi.createItem(createData);
 
       expect(result).toEqual({
-        url: '/api/items',
+        url: '/items',
         method: 'POST',
         data: createData
       });
@@ -72,7 +72,7 @@ describe('CrudApiClient', () => {
       const result = await crudApi.listItems();
 
       expect(result).toEqual({
-        url: '/api/items',
+        url: '/items',
         method: 'GET'
       });
     });
@@ -88,7 +88,7 @@ describe('CrudApiClient', () => {
       const result = await crudApi.listItems(query);
 
       expect(result).toEqual({
-        url: '/api/items?limit=10&offset=20&sort_by=name&order=asc',
+        url: '/items?limit=10&offset=20&sort_by=name&order=asc',
         method: 'GET'
       });
     });
@@ -102,7 +102,7 @@ describe('CrudApiClient', () => {
       const result = await crudApi.listItems(query);
 
       expect(result).toEqual({
-        url: '/api/items?limit=5&sort_by=created_at',
+        url: '/items?limit=5&sort_by=created_at',
         method: 'GET'
       });
     });
@@ -111,7 +111,7 @@ describe('CrudApiClient', () => {
       const result = await crudApi.listItems({});
 
       expect(result).toEqual({
-        url: '/api/items',
+        url: '/items',
         method: 'GET'
       });
     });
@@ -124,7 +124,7 @@ describe('CrudApiClient', () => {
       const result = await crudApi.getItem(itemId);
 
       expect(result).toEqual({
-        url: '/api/items/123',
+        url: '/items/123',
         method: 'GET'
       });
     });
@@ -141,7 +141,7 @@ describe('CrudApiClient', () => {
       const result = await crudApi.updateItem(itemId, updateData);
 
       expect(result).toEqual({
-        url: '/api/items/123',
+        url: '/items/123',
         method: 'PUT',
         data: updateData
       });
@@ -156,7 +156,7 @@ describe('CrudApiClient', () => {
       const result = await crudApi.updateItem(itemId, updateData);
 
       expect(result).toEqual({
-        url: '/api/items/123',
+        url: '/items/123',
         method: 'PUT',
         data: updateData
       });
@@ -169,7 +169,7 @@ describe('CrudApiClient', () => {
       const result = await crudApi.updateItem(itemId, updateData);
 
       expect(result).toEqual({
-        url: '/api/items/123',
+        url: '/items/123',
         method: 'PUT',
         data: updateData
       });
@@ -183,7 +183,7 @@ describe('CrudApiClient', () => {
       const result = await crudApi.deleteItem(itemId);
 
       expect(result).toEqual({
-        url: '/api/items/123',
+        url: '/items/123',
         method: 'DELETE'
       });
     });
@@ -196,7 +196,7 @@ describe('CrudApiClient', () => {
       const result = await crudApi.deleteItems(ids);
 
       expect(result).toEqual({
-        url: '/api/items/batch-delete',
+        url: '/items/batch-delete',
         method: 'POST',
         data: { ids }
       });
@@ -208,7 +208,7 @@ describe('CrudApiClient', () => {
       const result = await crudApi.deleteItems(ids);
 
       expect(result).toEqual({
-        url: '/api/items/batch-delete',
+        url: '/items/batch-delete',
         method: 'POST',
         data: { ids: [] }
       });
@@ -222,7 +222,7 @@ describe('CrudApiClient', () => {
       const result = await crudApi.checkNameExists(name);
 
       expect(result).toEqual({
-        url: '/api/items/check-name?name=Test+Item',
+        url: '/items/check-name?name=Test+Item',
         method: 'GET'
       });
     });
@@ -234,7 +234,7 @@ describe('CrudApiClient', () => {
       const result = await crudApi.checkNameExists(name, excludeId);
 
       expect(result).toEqual({
-        url: '/api/items/check-name?name=Test+Item&exclude_id=123',
+        url: '/items/check-name?name=Test+Item&exclude_id=123',
         method: 'GET'
       });
     });
@@ -245,7 +245,7 @@ describe('CrudApiClient', () => {
       const result = await crudApi.checkNameExists(name);
 
       expect(result).toEqual({
-        url: '/api/items/check-name?name=Test+Item+%26+Special+Characters%21',
+        url: '/items/check-name?name=Test+Item+%26+Special+Characters%21',
         method: 'GET'
       });
     });
@@ -258,7 +258,7 @@ describe('CrudApiClient', () => {
       const result = await crudApi.getItem(specialId);
 
       expect(result).toEqual({
-        url: '/api/items/item-123_test',
+        url: '/items/item-123_test',
         method: 'GET'
       });
     });
@@ -272,7 +272,7 @@ describe('CrudApiClient', () => {
       const result = await crudApi.listItems(query);
 
       expect(result).toEqual({
-        url: '/api/items?limit=0&offset=0',
+        url: '/items?limit=0&offset=0',
         method: 'GET'
       });
     });
