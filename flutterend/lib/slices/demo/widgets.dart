@@ -64,7 +64,6 @@ class _TasksWidgetState extends ConsumerState<TasksWidget>
         appBar: AppBar(
           title: const Text('任务管理'),
           backgroundColor: Theme.of(context).colorScheme.inversePrimary,
-          automaticallyImplyLeading: false, // 禁用自动返回按钮
           actions: [
             IconButton(
               icon: const Icon(Icons.refresh),

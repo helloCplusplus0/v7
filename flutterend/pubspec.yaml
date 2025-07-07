@@ -44,15 +44,20 @@ dependencies:
   retrofit: ^4.5.0
   json_annotation: ^4.9.0
 
+  # 网络连接检测
+  connectivity_plus: ^6.1.0
+
   # 本地存储
   hive: ^2.2.3
   hive_flutter: ^1.1.0
   path_provider: ^2.1.5
   shared_preferences: ^2.3.4
+  sqflite: ^2.4.1
 
   # 工具类
   freezed_annotation: ^2.4.4
   equatable: ^2.0.5
+  path: ^1.9.1
   
   # UI组件
   cupertino_icons: ^1.0.8
@@ -64,6 +69,13 @@ dependencies:
 
   # 依赖注入
   get_it: ^8.0.2
+  
+  # 后台任务管理
+  workmanager: ^0.5.2
+  
+  # 加密和压缩
+  crypto: ^3.0.6
+  archive: ^3.6.1
 
 dev_dependencies:
   flutter_test:
@@ -86,6 +98,7 @@ dev_dependencies:
 
   # 测试工具
   mocktail: ^1.0.4
+  sqflite_common_ffi: ^2.3.4
 
 # For information on the generic Dart part of this file, see the
 # following page: https://dart.dev/tools/pub/pubspec

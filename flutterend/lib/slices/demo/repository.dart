@@ -16,17 +16,14 @@ abstract class TaskRepository {
 class TaskRepositoryImpl implements TaskRepository {
   final ApiClient _apiClient;
 
-  TaskRepositoryImpl() : _apiClient = ServiceLocator.get<ApiClient>();
+  TaskRepositoryImpl() : _apiClient = ServiceLocator.instance.get<ApiClient>();
 
   @override
   Future<List<Task>> getTasks() async {
     try {
-      final response = await _apiClient.get<List<dynamic>>(
-        '/tasks',
-        fromJson: (data) => data as List<dynamic>,
-      );
-      
-      return response.map((json) => Task.fromJson(json as Map<String, dynamic>)).toList();
+      final response = await _apiClient.get<List<dynamic>>('/tasks');
+      final data = response.data as List<dynamic>;
+      return data.map((json) => Task.fromJson(json as Map<String, dynamic>)).toList();
     } catch (e) {
       // 模拟离线场景，返回本地模拟数据
       return _getMockTasks();
@@ -36,10 +33,8 @@ class TaskRepositoryImpl implements TaskRepository {
   @override
   Future<Task> getTask(String id) async {
     try {
-      return await _apiClient.get<Task>(
-        '/tasks/$id',
-        fromJson: (data) => Task.fromJson(data as Map<String, dynamic>),
-      );
+      final response = await _apiClient.get<Map<String, dynamic>>('/tasks/$id');
+      return Task.fromJson(response.data!);
     } catch (e) {
       // 模拟数据
       final mockTasks = _getMockTasks();
@@ -54,11 +49,11 @@ class TaskRepositoryImpl implements TaskRepository {
   @override
   Future<Task> createTask(CreateTaskRequest request) async {
     try {
-      return await _apiClient.post<Task>(
+      final response = await _apiClient.post<Map<String, dynamic>>(
         '/tasks',
         data: request.toJson(),
-        fromJson: (data) => Task.fromJson(data as Map<String, dynamic>),
       );
+      return Task.fromJson(response.data!);
     } catch (e) {
       // 模拟创建成功
       return Task(
@@ -75,11 +70,11 @@ class TaskRepositoryImpl implements TaskRepository {
   @override
   Future<Task> updateTask(String id, Task task) async {
     try {
-      return await _apiClient.put<Task>(
+      final response = await _apiClient.put<Map<String, dynamic>>(
         '/tasks/$id',
         data: task.toJson(),
-        fromJson: (data) => Task.fromJson(data as Map<String, dynamic>),
       );
+      return Task.fromJson(response.data!);
     } catch (e) {
       // 模拟更新成功
       return task.copyWith(updatedAt: DateTime.now());

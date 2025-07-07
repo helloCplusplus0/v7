@@ -8,10 +8,13 @@
 /// 5. Telegram美学设计
 
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../core/theme/app_theme.dart';
 import '../contracts/slice_summary_contract.dart';
+import '../connectivity/connectivity_providers.dart';
+import '../connectivity/network_monitor.dart';
 
-class TelegramSliceCard extends StatefulWidget {
+class TelegramSliceCard extends ConsumerStatefulWidget {
   const TelegramSliceCard({
     super.key,
     required this.slice,
@@ -24,10 +27,10 @@ class TelegramSliceCard extends StatefulWidget {
   final VoidCallback onTap;
 
   @override
-  State<TelegramSliceCard> createState() => _TelegramSliceCardState();
+  ConsumerState<TelegramSliceCard> createState() => _TelegramSliceCardState();
 }
 
-class _TelegramSliceCardState extends State<TelegramSliceCard>
+class _TelegramSliceCardState extends ConsumerState<TelegramSliceCard>
     with SingleTickerProviderStateMixin {
   late AnimationController _animationController;
   late Animation<double> _scaleAnimation;
@@ -119,13 +122,119 @@ class _TelegramSliceCardState extends State<TelegramSliceCard>
           ),
         ),
         const SizedBox(width: 8),
-        _buildStatusIndicator(),
+        _buildStatusIndicators(),
       ],
     );
   }
 
-  /// 🎯 状态指示器
-  Widget _buildStatusIndicator() {
+  /// 🎯 状态指示器组合：网络状态 + 后端状态 + 同步状态 + 切片状态
+  Widget _buildStatusIndicators() {
+    return Row(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        // 网络状态指示器
+        _buildNetworkIndicator(),
+        
+        const SizedBox(width: 6),
+        
+        // 后端服务状态指示器（如果有）
+        if (widget.summary?.hasBackendService == true) ...[
+          _buildBackendServiceIndicator(),
+          const SizedBox(width: 6),
+        ],
+        
+        // 同步状态指示器（如果启用了后台同步）
+        if (widget.summary?.hasBackgroundSync == true) ...[
+          _buildSyncStatusIndicator(),
+          const SizedBox(width: 6),
+        ],
+        
+        // 切片状态指示器
+        _buildSliceStatusIndicator(),
+      ],
+    );
+  }
+
+  /// 🎯 网络状态指示器
+  Widget _buildNetworkIndicator() {
+    final isConnected = ref.watch(isConnectedProvider);
+    final networkQuality = ref.watch(networkQualityProvider);
+    final networkType = ref.watch(networkTypeProvider);
+    
+    // 获取网络状态信息
+    final networkInfo = _getNetworkStatusInfo(
+      isConnected: isConnected,
+      quality: networkQuality,
+      type: networkType,
+    );
+    
+    return Tooltip(
+      message: networkInfo.tooltip,
+      child: Container(
+        padding: const EdgeInsets.all(4),
+        decoration: BoxDecoration(
+          color: networkInfo.color.withOpacity(0.1),
+          borderRadius: BorderRadius.circular(6),
+        ),
+        child: Icon(
+          networkInfo.icon,
+          size: 12,
+          color: networkInfo.color,
+        ),
+      ),
+    );
+  }
+
+  /// 🎯 后端服务状态指示器
+  Widget _buildBackendServiceIndicator() {
+    final backendService = widget.summary?.backendService;
+    if (backendService == null) return const SizedBox.shrink();
+    
+    final statusInfo = _getBackendStatusInfo(backendService.status);
+    
+    return Tooltip(
+      message: '${backendService.name}: ${backendService.statusDescription}',
+      child: Container(
+        padding: const EdgeInsets.all(4),
+        decoration: BoxDecoration(
+          color: statusInfo.color.withOpacity(0.1),
+          borderRadius: BorderRadius.circular(6),
+        ),
+        child: Icon(
+          statusInfo.icon,
+          size: 12,
+          color: statusInfo.color,
+        ),
+      ),
+    );
+  }
+
+  /// 🎯 同步状态指示器
+  Widget _buildSyncStatusIndicator() {
+    final syncInfo = widget.summary?.syncInfo;
+    if (syncInfo == null) return const SizedBox.shrink();
+    
+    final statusInfo = _getSyncStatusInfo(syncInfo.status);
+    
+    return Tooltip(
+      message: '同步状态: ${syncInfo.statusDescription}',
+      child: Container(
+        padding: const EdgeInsets.all(4),
+        decoration: BoxDecoration(
+          color: statusInfo.color.withOpacity(0.1),
+          borderRadius: BorderRadius.circular(6),
+        ),
+        child: Icon(
+          statusInfo.icon,
+          size: 12,
+          color: statusInfo.color,
+        ),
+      ),
+    );
+  }
+
+  /// 🎯 切片状态指示器
+  Widget _buildSliceStatusIndicator() {
     final status = widget.summary?.status ?? SliceStatus.loading;
     final statusInfo = _getStatusInfo(status);
     
@@ -343,6 +452,62 @@ class _TelegramSliceCardState extends State<TelegramSliceCard>
         return (icon: '🔴', text: '异常', color: AppTheme.errorColor);
       case SliceStatus.loading:
         return (icon: '⚪', text: '加载中', color: AppTheme.textMuted);
+    }
+  }
+
+  /// 🎯 网络状态信息映射
+  ({IconData icon, Color color, String tooltip}) _getNetworkStatusInfo({
+    required bool isConnected,
+    required NetworkQuality quality,
+    required NetworkType type,
+  }) {
+    if (!isConnected) {
+      return (icon: Icons.signal_wifi_off_rounded, color: AppTheme.errorColor, tooltip: '未连接网络');
+    }
+
+    switch (quality) {
+      case NetworkQuality.excellent:
+        return (icon: Icons.signal_wifi_4_bar_rounded, color: AppTheme.successColor, tooltip: '网络优秀');
+      case NetworkQuality.good:
+        return (icon: Icons.wifi_rounded, color: AppTheme.successColor, tooltip: '网络良好');
+      case NetworkQuality.fair:
+        return (icon: Icons.signal_wifi_statusbar_null_rounded, color: AppTheme.warningColor, tooltip: '网络一般');
+      case NetworkQuality.poor:
+        return (icon: Icons.signal_wifi_bad_rounded, color: AppTheme.warningColor, tooltip: '网络较差');
+      case NetworkQuality.none:
+        return (icon: Icons.signal_wifi_off_rounded, color: AppTheme.textMuted, tooltip: '无网络连接');
+    }
+  }
+
+  /// 🎯 后端服务状态信息映射
+  ({IconData icon, Color color}) _getBackendStatusInfo(BackendHealthStatus status) {
+    switch (status) {
+      case BackendHealthStatus.healthy:
+        return (icon: Icons.cloud_done_rounded, color: AppTheme.successColor);
+      case BackendHealthStatus.warning:
+        return (icon: Icons.cloud_queue_rounded, color: AppTheme.warningColor);
+      case BackendHealthStatus.error:
+        return (icon: Icons.cloud_off_rounded, color: AppTheme.errorColor);
+      case BackendHealthStatus.checking:
+        return (icon: Icons.cloud_sync_rounded, color: AppTheme.textMuted);
+      case BackendHealthStatus.unknown:
+        return (icon: Icons.help_outline_rounded, color: AppTheme.textMuted);
+    }
+  }
+
+  /// 🎯 同步状态信息映射
+  ({IconData icon, Color color}) _getSyncStatusInfo(SliceSyncStatus status) {
+    switch (status) {
+      case SliceSyncStatus.idle:
+        return (icon: Icons.pause_rounded, color: AppTheme.textMuted);
+      case SliceSyncStatus.syncing:
+        return (icon: Icons.sync_rounded, color: AppTheme.warningColor);
+      case SliceSyncStatus.success:
+        return (icon: Icons.check_circle_rounded, color: AppTheme.successColor);
+      case SliceSyncStatus.failed:
+        return (icon: Icons.error_rounded, color: AppTheme.errorColor);
+      case SliceSyncStatus.paused:
+        return (icon: Icons.pause_circle_rounded, color: AppTheme.textMuted);
     }
   }
 

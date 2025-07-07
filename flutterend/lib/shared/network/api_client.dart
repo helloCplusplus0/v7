@@ -1,152 +1,274 @@
+// Copyright (c) 2024 V7 Architecture
+// Licensed under MIT License
+
+import 'dart:convert';
+import 'dart:io';
 import 'package:dio/dio.dart';
 import 'package:flutter/foundation.dart';
 
-/// 基础API客户端
-/// 为所有功能切片提供统一的网络访问接口
+/// API客户端配置
+class ApiClientConfig {
+  const ApiClientConfig({
+    required this.baseUrl,
+    required this.timeout,
+    this.enableLogging = false,
+  });
+
+  final String baseUrl;
+  final Duration timeout;
+  final bool enableLogging;
+
+  /// 默认配置
+  static const ApiClientConfig defaultConfig = ApiClientConfig(
+    baseUrl: 'http://localhost:8080/api',
+    timeout: Duration(seconds: 30),
+    enableLogging: kDebugMode,
+  );
+
+  /// 从环境变量创建配置
+  factory ApiClientConfig.fromEnvironment({
+    String? baseUrl,
+    Duration? timeout,
+    bool? enableLogging,
+  }) {
+    return ApiClientConfig(
+      baseUrl: baseUrl ?? 
+               const String.fromEnvironment('API_BASE_URL', defaultValue: 'http://localhost:8080/api'),
+      timeout: timeout ?? const Duration(seconds: 30),
+      enableLogging: enableLogging ?? kDebugMode,
+    );
+  }
+}
+
+/// HTTP API客户端
 class ApiClient {
-  late final Dio _dio;
-  static const String baseUrl = 'http://localhost:8080/api';
-
-  ApiClient() {
-    _dio = Dio(BaseOptions(
-      baseUrl: baseUrl,
-      connectTimeout: const Duration(seconds: 5),
-      receiveTimeout: const Duration(seconds: 3),
-    ));
-
-    _setupInterceptors();
+  ApiClient({
+    String? backendName,
+    ApiClientConfig? config,
+  }) : _backendName = backendName,
+       _config = config ?? ApiClientConfig.defaultConfig {
+    _setupDio();
   }
 
-  void _setupInterceptors() {
-    if (kDebugMode) {
+  final String? _backendName;
+  final ApiClientConfig _config;
+  late final Dio _dio;
+
+  void _setupDio() {
+    _dio = Dio(BaseOptions(
+      baseUrl: _config.baseUrl,
+      connectTimeout: _config.timeout,
+      receiveTimeout: _config.timeout,
+      sendTimeout: _config.timeout,
+      headers: {
+        'Content-Type': 'application/json',
+        'Accept': 'application/json',
+      },
+    ));
+
+    if (_config.enableLogging) {
       _dio.interceptors.add(LogInterceptor(
         requestBody: true,
         responseBody: true,
+        requestHeader: true,
+        responseHeader: false,
+        error: true,
+        logPrint: (obj) => debugPrint('[$_backendName] $obj'),
       ));
     }
 
-    // 错误处理拦截器
+    // 添加错误拦截器
     _dio.interceptors.add(InterceptorsWrapper(
       onError: (error, handler) {
-        debugPrint('API Error: ${error.message}');
+        if (_config.enableLogging) {
+          debugPrint('[$_backendName] API错误: ${error.message}');
+        }
         handler.next(error);
       },
     ));
   }
 
   /// GET请求
-  Future<T> get<T>(
+  Future<Response<T>> get<T>(
     String path, {
     Map<String, dynamic>? queryParameters,
-    T Function(dynamic data)? fromJson,
+    Options? options,
+    CancelToken? cancelToken,
   }) async {
     try {
-      final response = await _dio.get(path, queryParameters: queryParameters);
-      
-      if (fromJson != null) {
-        return fromJson(response.data);
-      }
-      
-      return response.data as T;
-    } catch (e) {
-      throw _handleError(e);
+      return await _dio.get<T>(
+        path,
+        queryParameters: queryParameters,
+        options: options,
+        cancelToken: cancelToken,
+      );
+    } on DioException catch (e) {
+      throw _handleDioError(e);
     }
   }
 
   /// POST请求
-  Future<T> post<T>(
+  Future<Response<T>> post<T>(
     String path, {
     dynamic data,
-    T Function(dynamic data)? fromJson,
+    Map<String, dynamic>? queryParameters,
+    Options? options,
+    CancelToken? cancelToken,
   }) async {
     try {
-      final response = await _dio.post(path, data: data);
-      
-      if (fromJson != null) {
-        return fromJson(response.data);
-      }
-      
-      return response.data as T;
-    } catch (e) {
-      throw _handleError(e);
+      return await _dio.post<T>(
+        path,
+        data: data,
+        queryParameters: queryParameters,
+        options: options,
+        cancelToken: cancelToken,
+      );
+    } on DioException catch (e) {
+      throw _handleDioError(e);
     }
   }
 
   /// PUT请求
-  Future<T> put<T>(
+  Future<Response<T>> put<T>(
     String path, {
     dynamic data,
-    T Function(dynamic data)? fromJson,
+    Map<String, dynamic>? queryParameters,
+    Options? options,
+    CancelToken? cancelToken,
   }) async {
     try {
-      final response = await _dio.put(path, data: data);
-      
-      if (fromJson != null) {
-        return fromJson(response.data);
-      }
-      
-      return response.data as T;
-    } catch (e) {
-      throw _handleError(e);
+      return await _dio.put<T>(
+        path,
+        data: data,
+        queryParameters: queryParameters,
+        options: options,
+        cancelToken: cancelToken,
+      );
+    } on DioException catch (e) {
+      throw _handleDioError(e);
     }
   }
 
   /// DELETE请求
-  Future<void> delete(String path) async {
+  Future<Response<T>> delete<T>(
+    String path, {
+    dynamic data,
+    Map<String, dynamic>? queryParameters,
+    Options? options,
+    CancelToken? cancelToken,
+  }) async {
     try {
-      await _dio.delete(path);
-    } catch (e) {
-      throw _handleError(e);
+      return await _dio.delete<T>(
+        path,
+        data: data,
+        queryParameters: queryParameters,
+        options: options,
+        cancelToken: cancelToken,
+      );
+    } on DioException catch (e) {
+      throw _handleDioError(e);
     }
   }
 
-  /// 错误处理
-  Exception _handleError(dynamic error) {
-    if (error is DioException) {
-      switch (error.type) {
-        case DioExceptionType.connectionTimeout:
-        case DioExceptionType.sendTimeout:
-        case DioExceptionType.receiveTimeout:
-          return Exception('网络连接超时');
-        case DioExceptionType.connectionError:
-          return Exception('网络连接失败');
-        case DioExceptionType.badResponse:
-          return Exception('服务器错误: ${error.response?.statusCode}');
-        default:
-          return Exception('网络请求失败');
+  /// 健康检查
+  Future<bool> healthCheck() async {
+    try {
+      final response = await _dio.get('/health');
+      return response.statusCode == 200;
+    } catch (e) {
+      if (_config.enableLogging) {
+        debugPrint('[$_backendName] 健康检查失败: $e');
       }
+      return false;
     }
-    return Exception('未知错误: $error');
+  }
+
+  /// 处理Dio错误
+  Exception _handleDioError(DioException error) {
+    switch (error.type) {
+      case DioExceptionType.connectionTimeout:
+      case DioExceptionType.sendTimeout:
+      case DioExceptionType.receiveTimeout:
+        return SocketException('请求超时');
+      case DioExceptionType.connectionError:
+        return const SocketException('网络连接失败');
+      case DioExceptionType.badResponse:
+        final statusCode = error.response?.statusCode ?? 0;
+        final message = error.response?.data?.toString() ?? '服务器错误';
+        return HttpException('HTTP错误 $statusCode: $message');
+      case DioExceptionType.cancel:
+        return const SocketException('请求已取消');
+      case DioExceptionType.unknown:
+      default:
+        return Exception('未知错误: ${error.message}');
+    }
+  }
+
+  /// 获取基础URL
+  String get baseUrl => _config.baseUrl;
+
+  /// 获取后端名称
+  String? get backendName => _backendName;
+
+  /// 关闭客户端
+  void close() {
+    _dio.close();
   }
 }
 
-/// API异常类
-class ApiException implements Exception {
-  final String message;
-  final int? statusCode;
+/// API客户端工厂
+class ApiClientFactory {
+  static final Map<String, ApiClient> _clients = {};
 
-  const ApiException(this.message, [this.statusCode]);
-
-  factory ApiException.fromDioError(DioException error) {
-    switch (error.type) {
-      case DioExceptionType.connectionTimeout:
-        return const ApiException('连接超时，请检查网络');
-      case DioExceptionType.sendTimeout:
-        return const ApiException('请求超时，请稍后重试');
-      case DioExceptionType.receiveTimeout:
-        return const ApiException('响应超时，请稍后重试');
-      case DioExceptionType.badResponse:
-        return ApiException(
-          '服务器错误: ${error.response?.statusMessage}',
-          error.response?.statusCode,
-        );
-      case DioExceptionType.cancel:
-        return const ApiException('请求已取消');
-      default:
-        return ApiException('网络错误: ${error.message}');
+  /// 获取客户端实例
+  static ApiClient getClient([String? backendName]) {
+    final key = backendName ?? 'default';
+    
+    if (!_clients.containsKey(key)) {
+      _clients[key] = ApiClient(
+        backendName: backendName,
+        config: ApiClientConfig.fromEnvironment(),
+      );
     }
+    
+    return _clients[key]!;
   }
 
-  @override
-  String toString() => message;
+  /// 创建自定义客户端
+  static ApiClient createClient({
+    String? backendName,
+    required String baseUrl,
+    Duration? timeout,
+    bool? enableLogging,
+  }) {
+    final config = ApiClientConfig(
+      baseUrl: baseUrl,
+      timeout: timeout ?? const Duration(seconds: 30),
+      enableLogging: enableLogging ?? kDebugMode,
+    );
+    
+    return ApiClient(
+      backendName: backendName,
+      config: config,
+    );
+  }
+
+  /// 检查所有客户端的健康状态
+  static Future<Map<String, bool>> checkAllHealthStatus() async {
+    final results = <String, bool>{};
+    
+    for (final entry in _clients.entries) {
+      results[entry.key] = await entry.value.healthCheck();
+    }
+    
+    return results;
+  }
+
+  /// 清理所有客户端
+  static void cleanup() {
+    for (final client in _clients.values) {
+      client.close();
+    }
+    _clients.clear();
+  }
 } 

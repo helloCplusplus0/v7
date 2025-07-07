@@ -9,56 +9,167 @@
 import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:http/http.dart' as http;
 
 import '../../shared/contracts/slice_summary_contract.dart';
 import '../../shared/events/event_bus.dart';
+import '../../shared/events/events.dart';
 import '../../shared/services/service_locator.dart';
 import 'service.dart';
 import 'models.dart';
 
 /// Demo任务管理切片摘要提供者
 class DemoTaskSummaryProvider implements SliceSummaryProvider {
-  DemoTaskSummaryProvider() {
+  DemoTaskSummaryProvider({
+    this.backendBaseUrl = 'http://localhost:8080',
+    this.requiredEndpoints = const ['/api/items', '/api/info'],
+    this.healthCheckInterval = const Duration(minutes: 2),
+  }) {
     _initialize();
   }
 
+  /// 后端基础URL（可配置）
+  final String backendBaseUrl;
+  /// 必需的API端点列表
+  final List<String> requiredEndpoints;
+  /// 健康检查间隔
+  final Duration healthCheckInterval;
+
   TaskService? _taskService;
+  Timer? _healthCheckTimer;
   
   // 当前状态缓存
   SliceSummaryContract? _cachedSummary;
   DateTime? _lastUpdateTime;
+  
+  // 后端服务状态
+  BackendServiceInfo _backendServiceInfo = const BackendServiceInfo(
+    name: 'demo-backend',
+    baseUrl: 'http://localhost:8080',
+    status: BackendHealthStatus.unknown,
+  );
 
   /// 初始化
   void _initialize() {
     try {
-      _taskService = ServiceLocator.get<TaskService>();
+      _taskService = ServiceLocator.instance.get<TaskService>();
     } catch (e) {
       // 如果服务未注册，忽略错误
       debugPrint('TaskService未注册，使用模拟数据');
     }
 
     // 监听任务事件，实时更新摘要
-    // 注意：EventBus没有直接的stream，需要通过on方法监听特定事件
     _setupEventListeners();
+    
+    // 开始后端健康检查
+    _startBackendHealthCheck();
+  }
+
+  /// 开始后端健康检查
+  void _startBackendHealthCheck() {
+    // 立即检查一次
+    _checkBackendHealth();
+    
+    // 定期检查
+    _healthCheckTimer = Timer.periodic(healthCheckInterval, (_) {
+      _checkBackendHealth();
+    });
+  }
+
+  /// 检查后端健康状态
+  Future<void> _checkBackendHealth() async {
+    try {
+      _backendServiceInfo = _backendServiceInfo.copyWith(
+        status: BackendHealthStatus.checking,
+      );
+
+      final checkedEndpoints = <String>[];
+      final responseTimes = <int>[];
+      String? errorMessage;
+
+      // 检查每个必需的端点
+      for (final endpoint in requiredEndpoints) {
+        try {
+          final stopwatch = Stopwatch()..start();
+          final response = await http.get(
+            Uri.parse('$backendBaseUrl$endpoint'),
+            headers: {'Accept': 'application/json'},
+          ).timeout(const Duration(seconds: 10));
+          
+          stopwatch.stop();
+          
+          if (response.statusCode == 200) {
+            checkedEndpoints.add(endpoint);
+            responseTimes.add(stopwatch.elapsedMilliseconds);
+          } else {
+            errorMessage = 'API $endpoint 返回状态码 ${response.statusCode}';
+            break;
+          }
+        } catch (e) {
+          errorMessage = 'API $endpoint 检查失败: ${e.toString()}';
+          break;
+        }
+      }
+
+      // 确定健康状态
+      BackendHealthStatus status;
+      if (checkedEndpoints.length == requiredEndpoints.length) {
+        final avgResponseTime = responseTimes.isEmpty 
+            ? 0 
+            : responseTimes.reduce((a, b) => a + b) ~/ responseTimes.length;
+        
+        if (avgResponseTime < 1000) {
+          status = BackendHealthStatus.healthy;
+        } else {
+          status = BackendHealthStatus.warning;
+          errorMessage = '响应时间较慢 (${avgResponseTime}ms)';
+        }
+      } else {
+        status = BackendHealthStatus.error;
+      }
+
+      _backendServiceInfo = _backendServiceInfo.copyWith(
+        status: status,
+        responseTime: responseTimes.isEmpty ? null : responseTimes.first,
+        lastCheckTime: DateTime.now(),
+        errorMessage: errorMessage,
+        checkedEndpoints: checkedEndpoints,
+      );
+
+      // 清除缓存，触发UI更新
+      _cachedSummary = null;
+      
+    } catch (e) {
+      _backendServiceInfo = _backendServiceInfo.copyWith(
+        status: BackendHealthStatus.error,
+        lastCheckTime: DateTime.now(),
+        errorMessage: '健康检查异常: ${e.toString()}',
+      );
+    }
   }
 
   /// 设置事件监听器
   void _setupEventListeners() {
-    // 监听任务相关的各种事件
-    final taskEvents = [
-      'tasks:loaded',
-      'task:created',
-      'task:toggled', 
-      'task:deleted',
-      'task:error'
-    ];
-
-    for (final eventType in taskEvents) {
-      eventBus.on(eventType, (data) {
-        // 清除缓存，强制下次获取时重新计算
-        _cachedSummary = null;
-      });
-    }
+    // 监听任务相关事件，清除缓存，强制下次获取时重新计算
+    eventBus.on<TasksLoadedEvent>((event) {
+      _cachedSummary = null;
+    });
+    
+    eventBus.on<TaskCreatedEvent>((event) {
+      _cachedSummary = null;
+    });
+    
+    eventBus.on<TaskToggledEvent>((event) {
+      _cachedSummary = null;
+    });
+    
+    eventBus.on<TaskDeletedEvent>((event) {
+      _cachedSummary = null;
+    });
+    
+    eventBus.on<TaskErrorEvent>((event) {
+      _cachedSummary = null;
+    });
   }
 
   @override
@@ -103,13 +214,13 @@ class DemoTaskSummaryProvider implements SliceSummaryProvider {
           ? (completedTasks / totalTasks * 100).round() 
           : 0;
 
-      // 判断系统状态
+      // 判断系统状态（结合后端状态）
       SliceStatus status;
       if (currentState.isLoading) {
         status = SliceStatus.loading;
-      } else if (currentState.error != null) {
+      } else if (currentState.error != null || !_backendServiceInfo.isAvailable) {
         status = SliceStatus.error;
-      } else if (pendingTasks > 10) {
+      } else if (pendingTasks > 10 || _backendServiceInfo.status == BackendHealthStatus.warning) {
         status = SliceStatus.warning;
       } else {
         status = SliceStatus.healthy;
@@ -144,6 +255,13 @@ class DemoTaskSummaryProvider implements SliceSummaryProvider {
           trend: _getTrend(completionRate, 'rate'),
           icon: '📊',
         ),
+        // 添加后端状态指标
+        SliceMetric(
+          label: '后端状态',
+          value: _backendServiceInfo.statusDescription,
+          trend: _backendServiceInfo.isAvailable ? 'up' : 'down',
+          icon: _backendServiceInfo.isAvailable ? '🟢' : '🔴',
+        ),
       ];
 
       // 构建自定义操作
@@ -152,7 +270,7 @@ class DemoTaskSummaryProvider implements SliceSummaryProvider {
           label: '新建任务',
           onPressed: () {
             // 发布创建任务事件
-            eventBus.emit('ui:request_create_task', {});
+            eventBus.emit(UIRequestCreateTaskEvent());
           },
           icon: '➕',
           variant: SliceActionVariant.primary,
@@ -165,6 +283,14 @@ class DemoTaskSummaryProvider implements SliceSummaryProvider {
           icon: '🔄',
           variant: SliceActionVariant.secondary,
         ),
+        SliceAction(
+          label: '检查后端',
+          onPressed: () async {
+            await _checkBackendHealth();
+          },
+          icon: '🔍',
+          variant: SliceActionVariant.secondary,
+        ),
       ];
 
       return SliceSummaryContract(
@@ -175,6 +301,7 @@ class DemoTaskSummaryProvider implements SliceSummaryProvider {
         lastUpdated: DateTime.now(),
         alertCount: pendingTasks > 10 ? 1 : 0,
         customActions: customActions,
+        backendService: _backendServiceInfo, // 包含后端服务信息
       );
     } catch (error) {
       return _getErrorSummary(error.toString());
@@ -193,26 +320,27 @@ class DemoTaskSummaryProvider implements SliceSummaryProvider {
           trend: 'stable',
           icon: '🔒',
         ),
-        const SliceMetric(
-          label: '状态',
-          value: '离线',
-          trend: 'stable',
-          icon: '📱',
+        SliceMetric(
+          label: '后端状态',
+          value: _backendServiceInfo.statusDescription,
+          trend: _backendServiceInfo.isAvailable ? 'up' : 'down',
+          icon: _backendServiceInfo.isAvailable ? '🟢' : '🔴',
         ),
       ],
-      description: '当前运行在演示模式下，数据为模拟数据',
+      description: '当前运行在演示模式下，数据仅供展示',
       lastUpdated: DateTime.now(),
-      alertCount: 0,
+      alertCount: 1,
       customActions: [
         SliceAction(
-          label: '查看详情',
-          onPressed: () {
-            eventBus.emit('ui:navigate_to_slice', {'slice': 'demo'});
+          label: '检查后端',
+          onPressed: () async {
+            await _checkBackendHealth();
           },
-          icon: '👀',
+          icon: '🔍',
           variant: SliceActionVariant.secondary,
         ),
       ],
+      backendService: _backendServiceInfo,
     );
   }
 
@@ -305,15 +433,39 @@ class DemoTaskSummaryProvider implements SliceSummaryProvider {
     }
     
     // 发布刷新事件
-    eventBus.emit('demo:summary_refreshed', {
-      'timestamp': DateTime.now().toIso8601String(),
-    });
+    eventBus.emit(DemoSummaryRefreshedEvent(
+      totalTasks: _taskService?.currentState.tasks.length ?? 0,
+      completedTasks: _taskService?.currentState.tasks.where((t) => t.isCompleted).length ?? 0,
+    ));
   }
 
   @override
+  Future<void> startBackgroundSync() async {
+    // Demo切片的后台同步实现
+    debugPrint('Demo切片开始后台同步');
+  }
+
+  @override
+  Future<void> stopBackgroundSync() async {
+    // Demo切片的停止后台同步实现
+    debugPrint('Demo切片停止后台同步');
+  }
+
+  @override
+  Future<void> triggerSync() async {
+    // Demo切片的手动同步实现
+    debugPrint('Demo切片触发手动同步');
+    await refreshData();
+  }
+
+  @override
+  Stream<SliceSyncInfo>? get syncStatusStream => null;
+
+  /// 释放资源
+  @override
   void dispose() {
-    // 注意：当前EventBus设计不支持返回StreamSubscription
-    // 这里只是清理内部状态
+    _healthCheckTimer?.cancel();
+    _healthCheckTimer = null;
     _taskService = null;
     _cachedSummary = null;
     _lastUpdateTime = null;

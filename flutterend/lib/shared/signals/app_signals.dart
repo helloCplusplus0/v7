@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import '../contracts/base_contract.dart';
+import '../types/user.dart';
 
 /// v7 架构全局信号系统
 /// 基于 Riverpod 实现的响应式状态管理

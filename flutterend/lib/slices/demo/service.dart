@@ -1,5 +1,7 @@
 import 'dart:async';
+import 'package:flutter/foundation.dart';
 import '../../shared/events/event_bus.dart';
+import '../../shared/events/events.dart';
 import '../../shared/services/service_locator.dart';
 import 'models.dart';
 import 'repository.dart';
@@ -10,12 +12,20 @@ import 'repository.dart';
 class TaskService {
   final TaskRepository _repository;
   final StreamController<TasksState> _stateController = StreamController.broadcast();
+  final bool _autoRegister;
   
   TasksState _currentState = const TasksState();
 
-  TaskService() : _repository = TaskRepositoryImpl() {
+  TaskService({bool autoRegister = true}) 
+      : _repository = TaskRepositoryImpl(),
+        _autoRegister = autoRegister {
+    if (_autoRegister) {
     _initialize();
+    }
   }
+
+  /// 创建不自动注册的TaskService实例
+  TaskService.withoutAutoRegister() : this(autoRegister: false);
 
   /// 状态流
   Stream<TasksState> get stateStream => _stateController.stream;
@@ -25,8 +35,11 @@ class TaskService {
 
   void _initialize() {
     // 注册服务到ServiceLocator
-    if (!ServiceLocator.isRegistered<TaskService>()) {
-      ServiceLocator.register<TaskService>(this);
+    if (!ServiceLocator.instance.isRegistered<TaskService>()) {
+      ServiceLocator.instance.registerSingleton<TaskService>(this);
+      if (kDebugMode) {
+        debugPrint('✅ TaskService已自动注册到ServiceLocator');
+      }
     }
   }
 
@@ -44,7 +57,11 @@ class TaskService {
       ));
 
       // 发布任务加载事件
-      EventBus.instance.emit('tasks:loaded', {'count': tasks.length});
+      EventBus.instance.emit(TasksLoadedEvent(count: tasks.length));
+      
+      if (kDebugMode) {
+        debugPrint('✅ 任务列表加载成功，共${tasks.length}个任务');
+      }
       
     } catch (e) {
       _updateState(_currentState.copyWith(
@@ -53,7 +70,11 @@ class TaskService {
       ));
       
       // 发布错误事件
-      EventBus.instance.emit('tasks:error', {'error': e.toString()});
+      EventBus.instance.emit(TaskErrorEvent(error: e.toString()));
+      
+      if (kDebugMode) {
+        debugPrint('❌ 任务列表加载失败: $e');
+      }
     }
   }
 
@@ -66,16 +87,16 @@ class TaskService {
       _updateState(_currentState.copyWith(tasks: updatedTasks));
       
       // 发布任务创建事件
-      EventBus.instance.emit('task:created', {
-        'task': newTask.toJson(),
-        'title': newTask.title,
-      });
+      EventBus.instance.emit(TaskCreatedEvent(
+        taskId: newTask.id,
+        title: newTask.title,
+      ));
       
     } catch (e) {
       _updateState(_currentState.copyWith(error: e.toString()));
       
       // 发布错误事件
-      EventBus.instance.emit('task:error', {'error': e.toString()});
+      EventBus.instance.emit(TaskErrorEvent(error: e.toString()));
       rethrow;
     }
   }
@@ -99,17 +120,16 @@ class TaskService {
       _updateState(_currentState.copyWith(tasks: updatedTasks));
 
       // 发布任务状态变化事件
-      EventBus.instance.emit('task:toggled', {
-        'taskId': taskId,
-        'isCompleted': updatedTask.isCompleted,
-        'title': updatedTask.title,
-      });
+      EventBus.instance.emit(TaskToggledEvent(
+        taskId: taskId,
+        isCompleted: updatedTask.isCompleted,
+      ));
       
     } catch (e) {
       _updateState(_currentState.copyWith(error: e.toString()));
       
       // 发布错误事件
-      EventBus.instance.emit('task:error', {'error': e.toString()});
+      EventBus.instance.emit(TaskErrorEvent(error: e.toString()));
     }
   }
 
@@ -122,16 +142,13 @@ class TaskService {
       _updateState(_currentState.copyWith(tasks: updatedTasks));
       
       // 发布任务删除事件
-      EventBus.instance.emit('task:deleted', {
-        'taskId': taskId,
-        'remainingCount': updatedTasks.length,
-      });
+      EventBus.instance.emit(TaskDeletedEvent(taskId: taskId));
       
     } catch (e) {
       _updateState(_currentState.copyWith(error: e.toString()));
       
       // 发布错误事件
-      EventBus.instance.emit('task:error', {'error': e.toString()});
+      EventBus.instance.emit(TaskErrorEvent(error: e.toString()));
       rethrow;
     }
   }

@@ -1,18 +1,23 @@
-/// 🎨 v7 Flutter Persistent Shell - 完全对齐Web端Telegram风格
+/// 🎨 v7 Flutter Persistent Shell - 统一网络状态指示系统
 /// 
 /// 设计原则：
-/// 1. 底部固定导航，最高层级显示
-/// 2. 仅保留核心功能：搜索框 + Home按钮
-/// 3. 移动端和PC端统一体验
-/// 4. 背景模糊效果和Telegram美学
+/// 1. 统一的状态指示系统，避免信息冗余
+/// 2. 智能显示策略，减少用户干扰
+/// 3. 保持Telegram风格的简洁美学
+/// 4. 响应式设计，适配不同设备
+/// 5. 多层次状态提醒：横幅 → 浮动指示器 → 快捷按钮
 
 import 'dart:ui';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import '../core/theme/app_theme.dart';
+import '../shared/ui/network_status_banner.dart';
+import '../shared/offline/offline_indicator.dart';
+import '../shared/connectivity/connectivity_providers.dart';
 
-class PersistentShell extends StatefulWidget {
+class PersistentShell extends ConsumerStatefulWidget {
   const PersistentShell({
     super.key,
     required this.child,
@@ -21,10 +26,10 @@ class PersistentShell extends StatefulWidget {
   final Widget child;
 
   @override
-  State<PersistentShell> createState() => _PersistentShellState();
+  ConsumerState<PersistentShell> createState() => _PersistentShellState();
 }
 
-class _PersistentShellState extends State<PersistentShell> {
+class _PersistentShellState extends ConsumerState<PersistentShell> {
   final TextEditingController _searchController = TextEditingController();
   final FocusNode _searchFocusNode = FocusNode();
 
@@ -40,117 +45,122 @@ class _PersistentShellState extends State<PersistentShell> {
     return Scaffold(
       backgroundColor: AppTheme.bgSecondary,
       resizeToAvoidBottomInset: false,
-      body: Stack(
+      body: Column(
         children: [
-          // 🎯 主内容区域
-          Positioned.fill(
-            bottom: 80, // 为底部导航留空间
-            child: widget.child,
-          ),
+          // 🎯 统一网络状态横幅
+          const NetworkStatusBanner(),
           
-          // 🎯 Telegram风格底部导航
-          Positioned(
-            left: 0,
-            right: 0,
-            bottom: 0,
-            child: _buildTelegramBottomNavigation(),
+          // 🎯 主内容区域 - 不再使用Stack，避免内容遮挡
+          Expanded(
+            child: Column(
+              children: [
+                // 主内容
+                Expanded(
+                  child: widget.child,
+                ),
+                
+                // 🎯 Telegram风格底部导航
+                _buildTelegramBottomNavigation(),
+              ],
+            ),
           ),
         ],
       ),
     );
   }
+
+
 
   /// 🎨 Telegram风格底部导航栏
   Widget _buildTelegramBottomNavigation() {
     return Container(
+      height: 80,
       decoration: BoxDecoration(
-        color: AppTheme.bgPrimary,
-        border: const Border(
-          top: BorderSide(color: AppTheme.borderLight, width: 1),
-        ),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withOpacity(0.08),
-            offset: const Offset(0, -2),
-            blurRadius: 8,
-            spreadRadius: 0,
+        color: AppTheme.bgPrimary.withOpacity(0.95),
+                  border: Border(
+            top: BorderSide(
+              color: AppTheme.borderLight.withOpacity(0.2),
+              width: 0.5,
+            ),
           ),
-        ],
       ),
       child: ClipRect(
         child: BackdropFilter(
-          filter: ImageFilter.blur(sigmaX: 10, sigmaY: 10),
-          child: Container(
-            color: AppTheme.bgPrimary.withOpacity(0.8),
-            padding: EdgeInsets.only(
-              left: 16,
-              right: 16,
-              top: 12,
-              bottom: MediaQuery.of(context).padding.bottom + 12,
+          filter: ImageFilter.blur(sigmaX: 20, sigmaY: 20),
+          child: SafeArea(
+            top: false,
+            child: Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+              child: Row(
+                children: [
+                  // 🔍 搜索框
+                  Expanded(
+                    child: _buildSearchField(),
+                  ),
+                  
+                  const SizedBox(width: 12),
+                  
+                  // 🏠 Home按钮
+                  _buildHomeButton(),
+                  
+                  const SizedBox(width: 8),
+                  
+                  // 📶 网络状态快捷按钮
+                  _buildNetworkStatusButton(),
+                ],
+              ),
             ),
-            child: _buildNavigationContent(),
           ),
         ),
       ),
     );
   }
 
-  /// 🎯 导航内容
-  Widget _buildNavigationContent() {
-    return ConstrainedBox(
-      constraints: const BoxConstraints(maxWidth: 1200),
-      child: Row(
-        children: [
-          // 🔍 搜索框
-          Expanded(
-            child: _buildSearchBox(),
-          ),
-          
-          const SizedBox(width: 12),
-          
-          // 🏠 Home按钮
-          _buildHomeButton(),
-        ],
-      ),
-    );
-  }
-
-  /// 🔍 搜索框组件
-  Widget _buildSearchBox() {
+  /// 🔍 搜索框
+  Widget _buildSearchField() {
     return Container(
       height: 44,
       decoration: BoxDecoration(
-        color: AppTheme.bgSecondary,
+        color: AppTheme.bgSecondary.withOpacity(0.8),
         borderRadius: BorderRadius.circular(22),
-        border: Border.all(color: AppTheme.borderLight, width: 1),
+        border: Border.all(
+          color: AppTheme.borderLight.withOpacity(0.3),
+          width: 1,
+        ),
       ),
       child: TextField(
         controller: _searchController,
         focusNode: _searchFocusNode,
+        onChanged: _handleSearchChanged,
+        onSubmitted: _handleSearchSubmitted,
+        style: TextStyle(
+          color: AppTheme.textPrimary,
+          fontSize: 16,
+          fontWeight: FontWeight.w400,
+        ),
         decoration: InputDecoration(
-          hintText: '搜索功能切片...',
+          hintText: '搜索...',
           hintStyle: TextStyle(
-            color: AppTheme.textMuted,
-            fontSize: 14,
+            color: AppTheme.textSecondary,
+            fontSize: 16,
             fontWeight: FontWeight.w400,
           ),
           prefixIcon: Icon(
             Icons.search_rounded,
-            color: AppTheme.textMuted,
+            color: AppTheme.textSecondary,
             size: 20,
           ),
           suffixIcon: _searchController.text.isNotEmpty
               ? IconButton(
                   icon: Icon(
                     Icons.clear_rounded,
-                    color: AppTheme.textMuted,
+                    color: AppTheme.textSecondary,
                     size: 18,
                   ),
                   onPressed: () {
                     _searchController.clear();
-                    _handleSearchChanged('');
+                    setState(() {});
                   },
-                  splashRadius: 16,
                 )
               : null,
           border: InputBorder.none,
@@ -158,21 +168,12 @@ class _PersistentShellState extends State<PersistentShell> {
             horizontal: 16,
             vertical: 12,
           ),
-          isDense: true,
         ),
-        style: TextStyle(
-          color: AppTheme.textPrimary,
-          fontSize: 14,
-          fontWeight: FontWeight.w400,
-        ),
-        textInputAction: TextInputAction.search,
-        onChanged: _handleSearchChanged,
-        onSubmitted: _handleSearchSubmitted,
       ),
     );
   }
 
-  /// 🏠 Home按钮组件
+  /// 🏠 Home按钮
   Widget _buildHomeButton() {
     final isCurrentlyHome = GoRouterState.of(context).uri.toString() == '/';
     
@@ -214,56 +215,66 @@ class _PersistentShellState extends State<PersistentShell> {
     );
   }
 
-  /// 🔍 搜索变化处理
-  void _handleSearchChanged(String query) {
-    setState(() {
-      // 更新UI状态以显示/隐藏清除按钮
-    });
-    
-    // TODO: 实现搜索功能
-    if (query.isNotEmpty) {
-      debugPrint('🔍 搜索: $query');
-    }
+  /// 📊 网络状态快捷按钮
+  Widget _buildNetworkStatusButton() {
+    return Consumer(
+      builder: (context, ref, child) {
+        final isConnected = ref.watch(isConnectedProvider);
+        final offlineStatus = ref.watch(offlineIndicatorProvider);
+        
+        final (icon, color) = _getNetworkButtonStyle(isConnected, offlineStatus);
+        
+        return Container(
+          width: 44,
+          height: 44,
+          decoration: BoxDecoration(
+            color: color.withOpacity(0.1),
+            borderRadius: BorderRadius.circular(22),
+            border: Border.all(color: color.withOpacity(0.3), width: 1),
+          ),
+          child: Material(
+            color: Colors.transparent,
+            child: InkWell(
+              onTap: () => context.go('/offline-detail'),
+              borderRadius: BorderRadius.circular(22),
+              child: Icon(icon, color: color, size: 20),
+            ),
+          ),
+        );
+      },
+    );
   }
 
-  /// 🔍 搜索提交处理
+  /// 获取网络按钮样式
+  (IconData, Color) _getNetworkButtonStyle(bool isConnected, OfflineStatus offlineStatus) {
+    if (!isConnected || offlineStatus.operationMode == AppOperationMode.fullyOffline) {
+      return (Icons.wifi_off_rounded, Colors.red.shade600);
+    }
+    
+    if (offlineStatus.operationMode == AppOperationMode.serviceOffline) {
+      return (Icons.cloud_off_rounded, Colors.orange.shade600);
+    }
+    
+    if (offlineStatus.operationMode == AppOperationMode.hybrid) {
+      return (Icons.signal_wifi_bad_rounded, Colors.yellow.shade700);
+    }
+    
+    return (Icons.wifi_rounded, Colors.green.shade600);
+  }
+
+  // 事件处理方法
+  void _handleSearchChanged(String query) {
+    setState(() {});
+  }
+
   void _handleSearchSubmitted(String query) {
     if (query.trim().isEmpty) return;
-    
-    // 触发触觉反馈
     HapticFeedback.lightImpact();
-    
-    // 失去焦点
     _searchFocusNode.unfocus();
-    
-    // TODO: 实现搜索导航
-    debugPrint('🔍 执行搜索: $query');
-    
-    // 可以导航到搜索结果页面
-    // context.go('/search?q=${Uri.encodeComponent(query)}');
   }
 
-  /// 🏠 Home导航处理
   void _handleHomeNavigation() {
-    final currentLocation = GoRouterState.of(context).uri.toString();
-    
-    if (currentLocation != '/') {
-      // 触发触觉反馈
-      HapticFeedback.lightImpact();
-      
-      // 导航到首页
-      context.go('/');
-      
-      // 清空搜索框
-      if (_searchController.text.isNotEmpty) {
-        _searchController.clear();
-      }
-      
-      // 失去搜索框焦点
-      _searchFocusNode.unfocus();
-    } else {
-      // 如果已经在首页，触发轻微震动提示
-      HapticFeedback.selectionClick();
-    }
+    HapticFeedback.lightImpact();
+    context.go('/');
   }
 } 
