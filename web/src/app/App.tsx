@@ -21,7 +21,7 @@ function Layout(props: { children: any }) {
   return (
     <div class="app-container mobile-optimized">
       {/* 主内容区域 */}
-      <main>
+      <main class="main-content">
         <Suspense fallback={<div class="loading mobile-loading">加载中...</div>}>
           {props.children}
         </Suspense>

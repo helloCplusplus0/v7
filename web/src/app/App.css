@@ -25,12 +25,16 @@ html {
 }
 
 body {
-  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
-  background: #f8f9fa;
-  color: #2c3e50;
-  line-height: 1.6;
-  /* 移动端优化：防止横向滚动 */
-  overflow-x: hidden;
+  margin: 0;
+  padding: 0;
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto', 'Oxygen',
+    'Ubuntu', 'Cantarell', 'Fira Sans', 'Droid Sans', 'Helvetica Neue',
+    sans-serif;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  background-color: #f5f5f5;
+  /* 为底部导航栏预留空间 */
+  padding-bottom: calc(80px + env(safe-area-inset-bottom));
 }
 
 /* 应用容器 */
@@ -42,90 +46,137 @@ body {
 
 .app-container {
   flex: 1;
-  /* 移动端优化：考虑安全区域 */
-  padding-bottom: calc(80px + env(safe-area-inset-bottom));
+  display: flex;
+  flex-direction: column;
+  min-height: 100vh;
 }
 
-/* Telegram风格底部导航 */
+.main-content {
+  flex: 1;
+  overflow-y: auto;
+  -webkit-overflow-scrolling: touch;
+}
+
+/* ===== Header样式简化 ===== */
 .header-telegram {
   position: fixed;
   bottom: 0;
   left: 0;
   right: 0;
-  background: #ffffff;
-  border-top: 1px solid #e1e8ed;
-  padding: 12px 16px;
-  /* 移动端优化：安全区域支持 */
-  padding-bottom: calc(12px + env(safe-area-inset-bottom));
   z-index: 1000;
-  backdrop-filter: blur(10px);
-  -webkit-backdrop-filter: blur(10px);
+  background: #ffffff;
+  border-top: 1px solid #e5e7eb;
+  box-shadow: 0 -2px 8px 0 rgba(0, 0, 0, 0.1);
+  padding: 0.75rem 1rem;
+  /* 支持安全区域 */
+  padding-bottom: calc(0.75rem + env(safe-area-inset-bottom));
 }
 
 .header-content {
-  display: flex;
-  align-items: center;
-  gap: 12px;
   max-width: 1200px;
   margin: 0 auto;
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+  justify-content: space-between;
 }
 
+/* 搜索表单样式 */
 .search-form {
   flex: 1;
+  max-width: 400px;
 }
 
 .search-input {
   width: 100%;
-  padding: 10px 16px;
-  border: 1px solid #e1e8ed;
-  border-radius: 20px;
-  background: #f8f9fa;
-  font-size: 16px; /* 移动端优化：防止iOS缩放 */
-  outline: none;
+  padding: 0.5rem 1rem;
+  border: 1px solid #d1d5db;
+  border-radius: 0.5rem;
+  font-size: 1rem;
+  background: #f9fafb;
   transition: all 0.2s ease;
-  /* 移动端优化：触摸友好 */
-  min-height: 44px;
 }
 
 .search-input:focus {
-  border-color: #0088cc;
+  outline: none;
+  border-color: #3b82f6;
   background: #ffffff;
+  box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.1);
 }
 
+/* Home按钮样式 */
 .home-button {
   display: flex;
   align-items: center;
   justify-content: center;
-  width: 44px;
-  height: 44px;
-  background: #0088cc;
-  border-radius: 50%;
+  padding: 0.5rem;
+  background: #3b82f6;
   color: white;
   text-decoration: none;
+  border-radius: 0.5rem;
   transition: all 0.2s ease;
-  /* 移动端优化：触摸反馈 */
-  -webkit-tap-highlight-color: rgba(0, 136, 204, 0.2);
-  touch-action: manipulation;
+  min-width: 44px;
+  min-height: 44px;
 }
 
 .home-button:hover {
-  background: #006699;
-  transform: scale(1.05);
+  background: #2563eb;
+  transform: translateY(-1px);
 }
 
 .home-button:active {
-  transform: scale(0.95);
+  transform: scale(0.98);
 }
 
 .home-icon {
-  font-size: 18px;
+  font-size: 1.25rem;
 }
+
+/* 移动端优化 */
+@media (max-width: 768px) {
+  .header-telegram {
+    padding: 0.5rem 1rem;
+    padding-bottom: calc(0.5rem + env(safe-area-inset-bottom));
+  }
+  
+  .header-content {
+    gap: 0.75rem;
+  }
+  
+  .search-form {
+    max-width: none;
+  }
+  
+  .search-input {
+    font-size: 16px; /* 防止iOS缩放 */
+  }
+  
+  .home-button {
+    min-width: 44px;
+    min-height: 44px;
+  }
+}
+
+@media (max-width: 480px) {
+  .header-telegram {
+    padding: 0.5rem 0.75rem;
+    padding-bottom: calc(0.5rem + env(safe-area-inset-bottom));
+  }
+  
+  .header-content {
+    gap: 0.5rem;
+  }
+}
+
+/* 旧的复杂Header样式已移除，采用简化设计 */
 
 /* Dashboard容器 */
 .dashboard-telegram {
-  padding: 20px 16px;
+  padding: 1.5rem 1rem;
   max-width: 1200px;
   margin: 0 auto;
+  /* 确保内容不被底部导航栏遮挡 */
+  padding-bottom: calc(1.5rem + 80px + env(safe-area-inset-bottom));
 }
 
 .slices-container {
@@ -301,146 +352,141 @@ body {
 /* 小平板（平板竖屏） */
 @media (max-width: 768px) {
   .dashboard-telegram {
-    padding: 16px 12px;
+    padding: 1rem 0.75rem;
+    padding-bottom: calc(1rem + 80px + env(safe-area-inset-bottom));
   }
   
   .slices-container {
-    grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
-    gap: 12px;
+    gap: 1rem;
   }
   
   .slice-card-telegram {
-    padding: 16px;
-    aspect-ratio: 1.5 / 1; /* 平板优化比例 */
+    padding: 1rem;
+    border-radius: 12px;
   }
   
-  .header-content {
-    gap: 8px;
+  .desktop-layout {
+    display: none;
   }
   
-  .home-button {
-    width: 40px;
-    height: 40px;
-  }
-  
-  .home-icon {
-    font-size: 16px;
+  .mobile-layout {
+    display: block;
   }
   
   .slice-title-telegram {
-    font-size: 16px;
+    font-size: 1.125rem;
   }
 }
 
 /* 大手机（iPhone Plus/Max系列） */
 @media (max-width: 640px) {
   .dashboard-telegram {
-    padding: 12px 8px;
+    padding: 1rem 0.5rem;
+    padding-bottom: calc(1rem + 80px + env(safe-area-inset-bottom));
   }
   
   .slices-container {
-    grid-template-columns: 1fr;
-    gap: 10px;
+    gap: 0.75rem;
   }
   
   .slice-card-telegram {
-    aspect-ratio: 1.4 / 1; /* 大手机优化比例 */
-    padding: 14px;
+    padding: 0.875rem;
   }
   
   .slice-description-telegram {
-    -webkit-line-clamp: 2; /* 减少显示行数 */
+    font-size: 0.875rem;
   }
 }
 
 /* 标准手机（iPhone 12/13/14系列） */
 @media (max-width: 480px) {
   .dashboard-telegram {
-    padding: 10px 6px;
+    padding: 0.75rem 0.5rem;
+    padding-bottom: calc(0.75rem + 80px + env(safe-area-inset-bottom));
   }
   
   .slice-card-telegram {
-    aspect-ratio: 1.3 / 1; /* 标准手机优化比例 */
-    padding: 12px;
+    padding: 0.75rem;
   }
   
   .slice-title-telegram {
-    font-size: 15px;
+    font-size: 1rem;
   }
   
   .slice-description-telegram {
-    font-size: 13px;
-    -webkit-line-clamp: 2;
+    font-size: 0.875rem;
   }
   
   .metric-item-telegram {
-    padding: 4px 0;
+    flex-direction: column;
   }
   
   .metric-label {
-    font-size: 12px;
+    font-size: 0.75rem;
   }
   
   .metric-value {
-    font-size: 13px;
+    font-size: 1rem;
   }
   
-  .header-content {
-    gap: 6px;
+  .mobile-search-input {
+    font-size: 16px;
   }
   
-  .search-input {
-    font-size: 16px; /* 保持16px防止iOS缩放 */
-    padding: 8px 12px;
+  .nav-icon-btn {
+    min-width: 44px;
+    min-height: 44px;
+  }
+  
+  .nav-icon {
+    font-size: 1.25rem;
   }
 }
 
 /* 小手机（iPhone SE系列） */
 @media (max-width: 375px) {
   .dashboard-telegram {
-    padding: 8px 4px;
+    padding: 0.5rem 0.25rem;
+    padding-bottom: calc(0.5rem + 80px + env(safe-area-inset-bottom));
   }
   
   .slice-card-telegram {
-    aspect-ratio: 1.2 / 1; /* 小手机优化比例 */
-    padding: 10px;
+    padding: 0.625rem;
   }
   
   .slice-title-telegram {
-    font-size: 14px;
+    font-size: 0.9375rem;
   }
   
   .slice-description-telegram {
-    font-size: 12px;
-    -webkit-line-clamp: 1; /* 只显示一行 */
+    font-size: 0.8125rem;
   }
   
   .metric-info {
-    gap: 4px;
+    gap: 0.25rem;
   }
   
   .metric-value-container {
-    gap: 2px;
+    gap: 0.25rem;
   }
 }
 
 /* 超小屏幕（iPhone SE 1代等） */
 @media (max-width: 320px) {
   .slice-card-telegram {
-    aspect-ratio: 1.1 / 1; /* 超小屏优化比例 */
-    padding: 8px;
+    padding: 0.5rem;
   }
   
   .slice-metrics-telegram {
-    gap: 4px;
+    gap: 0.5rem;
   }
   
   .metric-item-telegram {
-    padding: 2px 0;
+    min-width: auto;
   }
   
   .slice-footer-telegram {
-    padding-top: 8px;
+    margin-top: 0.5rem;
   }
 }
 

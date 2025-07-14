@@ -1,11 +1,11 @@
 /**
- * Telegram风格底部导航Header
+ * 简化Header设计 - 搜索框 + Home按钮
  * 
  * 设计原则：
- * 1. 简洁直接，移除多余装饰
- * 2. 底部固定，最高层级显示
- * 3. 仅保留核心功能：搜索框 + Home按钮
- * 4. 移动端和PC端统一体验
+ * 1. 移动端：简洁的搜索框和Home按钮水平布局
+ * 2. 桌面端：完整搜索框 + Home按钮
+ * 3. 全面采用mobile-optimizations.css优化
+ * 4. 避免复杂的图标导航，保持直观简洁
  */
 
 import { createSignal } from "solid-js";
@@ -21,21 +21,21 @@ export default function Header() {
   };
 
   return (
-    <header class="header-telegram">
+    <header class="header-telegram mobile-optimized">
       <div class="header-content">
-        {/* 搜索框 */}
+        {/* 搜索表单 */}
         <form onSubmit={handleSearch} class="search-form">
           <input
             type="text"
             placeholder="搜索功能切片..."
             value={searchQuery()}
             onInput={(e) => setSearchQuery(e.currentTarget.value)}
-            class="search-input"
+            class="search-input mobile-input touch-friendly"
           />
         </form>
 
         {/* Home按钮 */}
-        <A href="/" class="home-button">
+        <A href="/" class="home-button mobile-button touch-friendly">
           <span class="home-icon">🏠</span>
         </A>
       </div>

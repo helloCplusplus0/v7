@@ -16,7 +16,24 @@ import {
   DeleteItemResponse,
   ListItemsRequest,
   ListItemsResponse,
-  Item
+  Item,
+  // 🔥 MVP_STAT 功能相关类型
+  StatisticsRequest,
+  StatisticsResponse,
+  GenerateRandomDataRequest,
+  GenerateRandomDataResponse,
+  CalculateStatisticsRequest,
+  CalculateStatisticsResponse,
+  ComprehensiveAnalysisRequest,
+  ComprehensiveAnalysisResponse,
+  DataSummary,
+  StatisticsResult,
+  BasicStatistics,
+  DistributionStatistics,
+  PercentileInfo,
+  ShapeStatistics,
+  PerformanceInfo,
+  DataRange
 } from './generated/backend_pb';
 
 /**
@@ -175,6 +192,109 @@ export class UnifiedGrpcClient {
     });
     return this.callMethod('ListItems', req);
   }
+
+  // ===== 🔥 MVP_STAT 统计分析功能 =====
+
+  /**
+   * 生成随机数据
+   */
+  async generateRandomData(request: Partial<GenerateRandomDataRequest>): Promise<GrpcResponse<GenerateRandomDataResponse>> {
+    const req = new StatisticsRequest({
+      requestType: {
+        case: 'generateData',
+        value: new GenerateRandomDataRequest({
+          count: request.count,
+          seed: request.seed ? BigInt(request.seed) : undefined,
+          minValue: request.minValue,
+          maxValue: request.maxValue,
+          distribution: request.distribution
+        })
+      }
+    });
+    
+    const response = await this.callMethod<StatisticsRequest, StatisticsResponse>('Statistics', req);
+    
+    if (response.success && response.data?.responseType?.case === 'dataResponse') {
+      return {
+        success: true,
+        data: response.data.responseType.value,
+        metadata: response.metadata
+      };
+    }
+    
+    return {
+      success: false,
+      error: response.error || '生成随机数据失败'
+    };
+  }
+
+  /**
+   * 计算统计量
+   */
+  async calculateStatistics(request: Partial<CalculateStatisticsRequest>): Promise<GrpcResponse<CalculateStatisticsResponse>> {
+    const req = new StatisticsRequest({
+      requestType: {
+        case: 'calculateStats',
+        value: new CalculateStatisticsRequest({
+          data: request.data || [],
+          statistics: request.statistics || [],
+          percentiles: request.percentiles || [],
+          useAnalyticsEngine: request.useAnalyticsEngine,
+          preferRust: request.preferRust
+        })
+      }
+    });
+    
+    const response = await this.callMethod<StatisticsRequest, StatisticsResponse>('Statistics', req);
+    
+    if (response.success && response.data?.responseType?.case === 'statsResponse') {
+      return {
+        success: true,
+        data: response.data.responseType.value,
+        metadata: response.metadata
+      };
+    }
+    
+    return {
+      success: false,
+      error: response.error || '计算统计量失败'
+    };
+  }
+
+  /**
+   * 综合分析（生成数据 + 计算统计量）
+   */
+  async comprehensiveAnalysis(request: {
+    dataConfig?: Partial<GenerateRandomDataRequest>;
+    statsConfig?: Partial<CalculateStatisticsRequest>;
+  }): Promise<GrpcResponse<ComprehensiveAnalysisResponse>> {
+    const req = new StatisticsRequest({
+      requestType: {
+        case: 'comprehensive',
+        value: new ComprehensiveAnalysisRequest({
+          dataConfig: request.dataConfig ? new GenerateRandomDataRequest(request.dataConfig) : undefined,
+          statsConfig: request.statsConfig ? new CalculateStatisticsRequest(request.statsConfig) : undefined
+        })
+      }
+    });
+    
+    const response = await this.callMethod<StatisticsRequest, StatisticsResponse>('Statistics', req);
+    
+    if (response.success && response.data?.responseType?.case === 'comprehensiveResponse') {
+      return {
+        success: true,
+        data: response.data.responseType.value,
+        metadata: response.metadata
+      };
+    }
+    
+    return {
+      success: false,
+      error: response.error || '综合分析失败'
+    };
+  }
+
+  // ===== 通用方法 =====
 
   /**
    * 通用gRPC方法调用
@@ -402,6 +522,9 @@ export class UnifiedGrpcClient {
         return DeleteItemResponse.fromBinary(data) as T;
       case 'ListItems':
         return ListItemsResponse.fromBinary(data) as T;
+      // 🔥 MVP_STAT 统计分析功能
+      case 'Statistics':
+        return StatisticsResponse.fromBinary(data) as T;
       default:
         throw new GrpcError(`Unknown method: ${methodName}`);
     }
@@ -480,5 +603,21 @@ export type {
   DeleteItemResponse,
   ListItemsRequest,
   ListItemsResponse,
-  Item
+  Item,
+  StatisticsRequest,
+  StatisticsResponse,
+  GenerateRandomDataRequest,
+  GenerateRandomDataResponse,
+  CalculateStatisticsRequest,
+  CalculateStatisticsResponse,
+  ComprehensiveAnalysisRequest,
+  ComprehensiveAnalysisResponse,
+  DataSummary,
+  StatisticsResult,
+  BasicStatistics,
+  DistributionStatistics,
+  PercentileInfo,
+  ShapeStatistics,
+  PerformanceInfo,
+  DataRange
 }; 

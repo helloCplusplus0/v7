@@ -41,5 +41,16 @@ export const createNotificationAccessor = () => ({
     setGlobalNotifications(prev => [...prev, notification]),
   removeNotification: (id: number) => 
     setGlobalNotifications(prev => prev.filter(n => n.id !== id)),
-  clearNotifications: () => setGlobalNotifications([])
+  clearNotifications: () => setGlobalNotifications([]),
+  show: (message: string, type: 'success' | 'error' | 'warning' | 'info' = 'info', duration?: number) => {
+    const notification: Notification = {
+      id: Date.now(),
+      message,
+      type,
+      timestamp: Date.now(),
+      duration
+    };
+    setGlobalNotifications(prev => [...prev, notification]);
+    return notification;
+  }
 }); 

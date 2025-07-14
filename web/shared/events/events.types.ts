@@ -215,6 +215,14 @@ export interface GlobalEventMap {
   'analytics:track': { event: string; properties?: any };
   'analytics:page': { page: string; properties?: any };
   'analytics:user': { userId: string; properties?: any };
+  
+  // MVP统计分析事件
+  'mvp_stat:data_generated': { count: number; distribution: string; seed: number };
+  'mvp_stat:stats_calculated': { statistics: string[]; dataSize: number; duration: number };
+  'mvp_stat:analysis_completed': { result: any; insights: { dataQuality: string } };
+  'mvp_stat:error': { error: string; operation: string };
+  'mvp_stat:operation_start': { operation: string };
+  'mvp_stat:operation_complete': { operation: string };
 }
 
 // ===== 事件处理器类型 =====
