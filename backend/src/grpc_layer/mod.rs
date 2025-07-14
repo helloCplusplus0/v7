@@ -309,107 +309,157 @@ impl BackendService for BackendGrpcService {
         &self,
         request: Request<StatisticsRequest>,
     ) -> Result<Response<StatisticsResponse>, Status> {
-        let req = request.into_inner();
+        let proto_req = request.into_inner();
+        tracing::info!("📊 收到统计分析请求");
         
         // 获取统计服务实例
         let service = di::inject::<ConcreteStatisticsService>();
         
-        match req.request_type {
-            Some(statistics_request::RequestType::GenerateData(grpc_req)) => {
+        // 根据请求类型分发处理
+        match proto_req.request_type {
+            Some(statistics_request::RequestType::GenerateData(proto_data_req)) => {
                 // 转换gRPC请求到内部类型
                 let internal_req = GenerateRandomDataRequest {
-                    count: grpc_req.count,
-                    seed: grpc_req.seed,
-                    min_value: grpc_req.min_value,
-                    max_value: grpc_req.max_value,
-                    distribution: grpc_req.distribution,
+                    count: proto_data_req.count,
+                    seed: proto_data_req.seed,
+                    min_value: proto_data_req.min_value,
+                    max_value: proto_data_req.max_value,
+                    distribution: proto_data_req.distribution,
                 };
                 
-                match mvp_stat::generate_random_data(service, internal_req).await {
+                // 调用业务层函数
+                match mvp_stat::functions::generate_random_data(service, internal_req).await {
                     Ok(internal_resp) => {
-                        let grpc_resp = convert_generate_data_response(internal_resp)?;
-                        Ok(Response::new(StatisticsResponse {
-                            response_type: Some(statistics_response::ResponseType::DataResponse(grpc_resp)),
-                            success: true,
-                            error: String::new(),
-                        }))
+                        tracing::info!("📊 生成随机数据成功: {} 个数据点", internal_resp.count);
+                        
+                        // 转换响应
+                        match convert_generate_data_response(internal_resp) {
+                            Ok(proto_resp) => {
+                                Ok(Response::new(StatisticsResponse {
+                                    response_type: Some(statistics_response::ResponseType::DataResponse(proto_resp)),
+                                    success: true,
+                                    error: String::new(),
+                                }))
+                            }
+                            Err(e) => Err(e),
+                        }
                     },
-                    Err(e) => Ok(Response::new(StatisticsResponse {
-                        response_type: None,
-                        success: false,
-                        error: e.to_string(),
-                    })),
+                    Err(e) => {
+                        tracing::error!("📊 生成随机数据失败: {}", e);
+                        Ok(Response::new(StatisticsResponse {
+                            response_type: None,
+                            success: false,
+                            error: format!("生成随机数据失败: {}", e),
+                        }))
+                    }
                 }
             },
-            
-            Some(statistics_request::RequestType::CalculateStats(grpc_req)) => {
+            Some(statistics_request::RequestType::CalculateStats(proto_stats_req)) => {
                 // 转换gRPC请求到内部类型
                 let internal_req = CalculateStatisticsRequest {
-                    data: grpc_req.data,
-                    statistics: grpc_req.statistics,
-                    percentiles: if grpc_req.percentiles.is_empty() { None } else { Some(grpc_req.percentiles) },
-                    use_analytics_engine: grpc_req.use_analytics_engine,
-                    prefer_rust: grpc_req.prefer_rust,
+                    data: proto_stats_req.data,
+                    statistics: proto_stats_req.statistics,
+                    percentiles: if proto_stats_req.percentiles.is_empty() {
+                        None
+                    } else {
+                        Some(proto_stats_req.percentiles)
+                    },
+                    use_analytics_engine: proto_stats_req.use_analytics_engine,
+                    prefer_rust: proto_stats_req.prefer_rust,
                 };
                 
-                match mvp_stat::calculate_statistics(service, internal_req).await {
+                // 调用业务层函数
+                match mvp_stat::functions::calculate_statistics(service, internal_req).await {
                     Ok(internal_resp) => {
-                        let grpc_resp = convert_calculate_stats_response(internal_resp)?;
-                        Ok(Response::new(StatisticsResponse {
-                            response_type: Some(statistics_response::ResponseType::StatsResponse(grpc_resp)),
-                            success: true,
-                            error: String::new(),
-                        }))
+                        tracing::info!("📊 计算统计量成功，使用实现: {}", internal_resp.implementation);
+                        
+                        // 转换响应
+                        match convert_calculate_stats_response(internal_resp) {
+                            Ok(proto_resp) => {
+                                Ok(Response::new(StatisticsResponse {
+                                    response_type: Some(statistics_response::ResponseType::StatsResponse(proto_resp)),
+                                    success: true,
+                                    error: String::new(),
+                                }))
+                            }
+                            Err(e) => Err(e),
+                        }
                     },
-                    Err(e) => Ok(Response::new(StatisticsResponse {
-                        response_type: None,
-                        success: false,
-                        error: e.to_string(),
-                    })),
+                    Err(e) => {
+                        tracing::error!("📊 计算统计量失败: {}", e);
+                        Ok(Response::new(StatisticsResponse {
+                            response_type: None,
+                            success: false,
+                            error: format!("计算统计量失败: {}", e),
+                        }))
+                    }
                 }
             },
-            
-            Some(statistics_request::RequestType::Comprehensive(grpc_req)) => {
+            Some(statistics_request::RequestType::Comprehensive(proto_comp_req)) => {
                 // 转换gRPC请求到内部类型
-                let data_config = grpc_req.data_config.ok_or_else(|| Status::invalid_argument("missing data_config"))?;
-                let stats_config = grpc_req.stats_config.ok_or_else(|| Status::invalid_argument("missing stats_config"))?;
+                let data_config = if let Some(data_cfg) = proto_comp_req.data_config {
+                    GenerateRandomDataRequest {
+                        count: data_cfg.count,
+                        seed: data_cfg.seed,
+                        min_value: data_cfg.min_value,
+                        max_value: data_cfg.max_value,
+                        distribution: data_cfg.distribution,
+                    }
+                } else {
+                    return Err(Status::invalid_argument("缺少数据生成配置"));
+                };
+                
+                let stats_config = if let Some(stats_cfg) = proto_comp_req.stats_config {
+                    CalculateStatisticsRequest {
+                        data: stats_cfg.data,
+                        statistics: stats_cfg.statistics,
+                        percentiles: if stats_cfg.percentiles.is_empty() {
+                            None
+                        } else {
+                            Some(stats_cfg.percentiles)
+                        },
+                        use_analytics_engine: stats_cfg.use_analytics_engine,
+                        prefer_rust: stats_cfg.prefer_rust,
+                    }
+                } else {
+                    return Err(Status::invalid_argument("缺少统计计算配置"));
+                };
                 
                 let internal_req = ComprehensiveAnalysisRequest {
-                    data_config: GenerateRandomDataRequest {
-                        count: data_config.count,
-                        seed: data_config.seed,
-                        min_value: data_config.min_value,
-                        max_value: data_config.max_value,
-                        distribution: data_config.distribution,
-                    },
-                    stats_config: CalculateStatisticsRequest {
-                        data: stats_config.data,
-                        statistics: stats_config.statistics,
-                        percentiles: if stats_config.percentiles.is_empty() { None } else { Some(stats_config.percentiles) },
-                        use_analytics_engine: stats_config.use_analytics_engine,
-                        prefer_rust: stats_config.prefer_rust,
-                    },
+                    data_config,
+                    stats_config,
                 };
                 
-                match mvp_stat::comprehensive_analysis(service, internal_req).await {
+                // 调用业务层函数
+                match mvp_stat::functions::comprehensive_analysis(service, internal_req).await {
                     Ok(internal_resp) => {
-                        let grpc_resp = convert_comprehensive_response(internal_resp)?;
-                        Ok(Response::new(StatisticsResponse {
-                            response_type: Some(statistics_response::ResponseType::ComprehensiveResponse(grpc_resp)),
-                            success: true,
-                            error: String::new(),
-                        }))
+                        tracing::info!("📊 综合分析成功: {} 个数据点", internal_resp.data_summary.count);
+                        
+                        // 转换响应
+                        match convert_comprehensive_response(internal_resp) {
+                            Ok(proto_resp) => {
+                                Ok(Response::new(StatisticsResponse {
+                                    response_type: Some(statistics_response::ResponseType::ComprehensiveResponse(proto_resp)),
+                                    success: true,
+                                    error: String::new(),
+                                }))
+                            }
+                            Err(e) => Err(e),
+                        }
                     },
-                    Err(e) => Ok(Response::new(StatisticsResponse {
-                        response_type: None,
-                        success: false,
-                        error: e.to_string(),
-                    })),
+                    Err(e) => {
+                        tracing::error!("📊 综合分析失败: {}", e);
+                        Ok(Response::new(StatisticsResponse {
+                            response_type: None,
+                            success: false,
+                            error: format!("综合分析失败: {}", e),
+                        }))
+                    }
                 }
             },
-            
             None => {
-                Err(Status::invalid_argument("缺少请求类型"))
+                tracing::warn!("📊 收到空的统计请求");
+                Err(Status::invalid_argument("请求类型不能为空"))
             }
         }
     }
@@ -431,14 +481,12 @@ fn convert_user_session(session: UserSession) -> GrpcUserSession {
 
 /// 转换生成随机数据响应
 fn convert_generate_data_response(internal: GenerateRandomDataResponse) -> Result<GrpcGenerateRandomDataResponse, Status> {
-    use proto::{PerformanceInfo as GrpcPerformanceInfo};
-    
     Ok(GrpcGenerateRandomDataResponse {
         data: internal.data,
         count: internal.count,
         seed: internal.seed,
         generated_at: internal.generated_at.to_rfc3339(),
-        performance: Some(GrpcPerformanceInfo {
+        performance: Some(proto::PerformanceInfo {
             execution_time_ms: internal.performance.execution_time_ms,
             memory_usage_bytes: internal.performance.memory_usage_bytes,
             implementation: internal.performance.implementation,
@@ -449,29 +497,25 @@ fn convert_generate_data_response(internal: GenerateRandomDataResponse) -> Resul
 
 /// 转换计算统计响应
 fn convert_calculate_stats_response(internal: CalculateStatisticsResponse) -> Result<GrpcCalculateStatisticsResponse, Status> {
-    use proto::{PerformanceInfo as GrpcPerformanceInfo};
-    
     Ok(GrpcCalculateStatisticsResponse {
         results: Some(convert_statistics_result(internal.results)),
-        implementation: internal.implementation,
-        performance: Some(GrpcPerformanceInfo {
+        performance: Some(proto::PerformanceInfo {
             execution_time_ms: internal.performance.execution_time_ms,
             memory_usage_bytes: internal.performance.memory_usage_bytes,
             implementation: internal.performance.implementation,
             metrics: internal.performance.metrics,
         }),
+        implementation: internal.implementation,
     })
 }
 
 /// 转换综合分析响应
 fn convert_comprehensive_response(internal: ComprehensiveAnalysisResponse) -> Result<GrpcComprehensiveAnalysisResponse, Status> {
-    use proto::{DataSummary as GrpcDataSummary, DataRange as GrpcDataRange, PerformanceInfo as GrpcPerformanceInfo};
-    
     Ok(GrpcComprehensiveAnalysisResponse {
-        data_summary: Some(GrpcDataSummary {
+        data_summary: Some(proto::DataSummary {
             count: internal.data_summary.count,
             seed: internal.data_summary.seed,
-            range: Some(GrpcDataRange {
+            range: Some(proto::DataRange {
                 min: internal.data_summary.range.0,
                 max: internal.data_summary.range.1,
             }),
@@ -479,13 +523,13 @@ fn convert_comprehensive_response(internal: ComprehensiveAnalysisResponse) -> Re
             preview: internal.data_summary.preview,
         }),
         statistics: Some(convert_statistics_result(internal.statistics)),
-        analyzed_at: internal.analyzed_at.to_rfc3339(),
-        performance: Some(GrpcPerformanceInfo {
+        performance: Some(proto::PerformanceInfo {
             execution_time_ms: internal.performance.execution_time_ms,
             memory_usage_bytes: internal.performance.memory_usage_bytes,
             implementation: internal.performance.implementation,
             metrics: internal.performance.metrics,
         }),
+        analyzed_at: internal.analyzed_at.to_rfc3339(),
     })
 }
 

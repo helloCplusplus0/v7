@@ -243,7 +243,7 @@ async fn setup_services() {
     // 创建统计分析服务实例
     let random_generator = fmod_slice::slices::mvp_stat::service::DefaultRandomDataGenerator::new();
     let analytics_client = fmod_slice::slices::mvp_stat::service::GrpcAnalyticsClient::new(
-        "http://localhost:50052".to_string() // Analytics Engine地址
+        "http://localhost:50051".to_string() // Analytics Engine地址 - 修复端口号
     );
     let dispatcher = fmod_slice::slices::mvp_stat::service::DefaultIntelligentDispatcher::new(
         analytics_client.clone()

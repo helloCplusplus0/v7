@@ -383,21 +383,23 @@ impl RandomDataGenerator for DefaultRandomDataGenerator {
 #[derive(Clone)]
 pub struct GrpcAnalyticsClient {
     endpoint: String,
-    channel: Option<Arc<Channel>>,
+    channel: Arc<tokio::sync::Mutex<Option<Arc<Channel>>>>,
 }
 
 impl GrpcAnalyticsClient {
     pub fn new(endpoint: String) -> Self {
         Self {
             endpoint,
-            channel: None,
+            channel: Arc::new(tokio::sync::Mutex::new(None)),
         }
     }
     
     /// 建立到Analytics Engine的真实gRPC连接
     async fn get_or_create_channel(&self) -> StatResult<Arc<Channel>> {
+        let mut channel_guard = self.channel.lock().await;
+        
         // 如果已有连接，直接返回
-        if let Some(channel) = &self.channel {
+        if let Some(channel) = &*channel_guard {
             return Ok(channel.clone());
         }
         
@@ -413,7 +415,10 @@ impl GrpcAnalyticsClient {
             })?;
         
         let channel = Arc::new(channel);
-        // 注意：这里应该使用内部可变性来更新channel，但为了简化，我们每次都创建新连接
+        
+        // 缓存连接
+        *channel_guard = Some(channel.clone());
+        
         Ok(channel)
     }
     

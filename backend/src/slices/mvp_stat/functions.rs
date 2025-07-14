@@ -209,7 +209,7 @@ mod tests {
     /// 创建测试用的服务实例
     fn create_test_service() -> impl StatisticsService {
         let generator = DefaultRandomDataGenerator::new();
-        let analytics_client = GrpcAnalyticsClient::new("http://localhost:50052".to_string());
+        let analytics_client = GrpcAnalyticsClient::new("http://localhost:50051".to_string());
         let dispatcher = DefaultIntelligentDispatcher::new(analytics_client.clone());
         DefaultStatisticsService::new(generator, analytics_client, dispatcher)
     }

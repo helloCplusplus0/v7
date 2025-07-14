@@ -45,7 +45,7 @@ async fn main() -> Result<()> {
                         "mean".to_string(),
                         "median".to_string(),
                         "variance".to_string(),
-                        "std_dev".to_string(),
+                        "std".to_string(),
                         "min".to_string(),
                         "max".to_string(),
                         "count".to_string(),
@@ -121,13 +121,13 @@ async fn main() -> Result<()> {
             
             println!("\n🎉 端到端gRPC测试成功！");
             println!("   验证了完整的数据流:");
-            println!("   Client -> Backend gRPC (50053) -> Analytics Engine gRPC (50052) -> Backend -> Client");
+            println!("   Client -> Backend gRPC (50053) -> Analytics Engine gRPC (50051) -> Backend -> Client");
         }
         Err(e) => {
             println!("❌ 统计分析失败: {}", e);
             println!("   请检查:");
             println!("   1. Backend gRPC服务是否在50053端口运行");
-            println!("   2. Analytics Engine是否在50052端口运行");
+            println!("   2. Analytics Engine是否在50051端口运行");
             println!("   3. 网络连接是否正常");
             return Err(e.into());
         }

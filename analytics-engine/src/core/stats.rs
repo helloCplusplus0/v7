@@ -26,6 +26,13 @@ pub async fn analyze_rust(request: &AnalysisRequest) -> Result<AnalysisResult> {
                 .unwrap_or(50.0);
             json!(calculate_percentile(&request.data, p)?)
         },
+        "mode" => json!(calculate_mode(&request.data)?),
+        "skewness" => json!(calculate_skewness(&request.data)?),
+        "kurtosis" => json!(calculate_kurtosis(&request.data)?),
+        "q1" => json!(calculate_percentile(&request.data, 25.0)?),
+        "q3" => json!(calculate_percentile(&request.data, 75.0)?),
+        "iqr" => json!(calculate_iqr(&request.data)?),
+        "count" => json!(calculate_count(&request.data)?),
         "summary" => json!(calculate_summary_stats(&request.data)?),
         _ => return Err(anyhow!("Algorithm '{}' not implemented in Rust", request.algorithm))
     };
@@ -130,6 +137,113 @@ fn calculate_percentile(data: &[f64], percentile: f64) -> Result<f64> {
         let weight = index - lower as f64;
         Ok(sorted[lower] * (1.0 - weight) + sorted[upper] * weight)
     }
+}
+
+fn calculate_mode(data: &[f64]) -> Result<serde_json::Value> {
+    if data.is_empty() {
+        return Err(anyhow!("Empty data"));
+    }
+    
+    use std::collections::HashMap;
+    
+    // 对于浮点数，我们需要考虑精度问题
+    // 将数据四舍五入到合理的精度（6位小数）
+    let precision = 1000000.0; // 6位小数精度
+    let mut frequency_map: HashMap<i64, f64> = HashMap::new();
+    let mut count_map: HashMap<i64, usize> = HashMap::new();
+    
+    for &value in data {
+        let rounded_key = (value * precision).round() as i64;
+        frequency_map.insert(rounded_key, value);
+        *count_map.entry(rounded_key).or_insert(0) += 1;
+    }
+    
+    // 找出最高频率
+    let max_count = count_map.values().max().unwrap_or(&0);
+    
+    if *max_count == 0 {
+        return Ok(serde_json::json!({
+            "modes": [],
+            "count": 0,
+            "frequency": 0,
+            "is_multimodal": false
+        }));
+    }
+    
+    // 找出所有具有最高频率的值
+    let modes: Vec<f64> = count_map
+        .iter()
+        .filter(|(_, &count)| count == *max_count)
+        .map(|(&key, _)| frequency_map[&key])
+        .collect();
+    
+    Ok(serde_json::json!({
+        "modes": modes,
+        "count": modes.len(),
+        "frequency": max_count,
+        "is_multimodal": modes.len() > 1,
+        "data_size": data.len()
+    }))
+}
+
+fn calculate_skewness(data: &[f64]) -> Result<f64> {
+    if data.len() < 3 {
+        return Err(anyhow!("Need at least 3 data points for skewness"));
+    }
+    
+    let mean = calculate_mean(data)?;
+    let std_dev = calculate_std(data)?;
+    
+    if std_dev == 0.0 {
+        return Ok(0.0);
+    }
+    
+    let n = data.len() as f64;
+    let sum_cubed_deviations: f64 = data.iter()
+        .map(|&x| ((x - mean) / std_dev).powi(3))
+        .sum();
+    
+    // Sample skewness formula with bias correction
+    let skewness = (n / ((n - 1.0) * (n - 2.0))) * sum_cubed_deviations;
+    Ok(skewness)
+}
+
+fn calculate_kurtosis(data: &[f64]) -> Result<f64> {
+    if data.len() < 4 {
+        return Err(anyhow!("Need at least 4 data points for kurtosis"));
+    }
+    
+    let mean = calculate_mean(data)?;
+    let std_dev = calculate_std(data)?;
+    
+    if std_dev == 0.0 {
+        return Ok(0.0);
+    }
+    
+    let n = data.len() as f64;
+    let sum_fourth_deviations: f64 = data.iter()
+        .map(|&x| ((x - mean) / std_dev).powi(4))
+        .sum();
+    
+    // Sample kurtosis formula with bias correction (excess kurtosis)
+    let kurtosis = (n * (n + 1.0) / ((n - 1.0) * (n - 2.0) * (n - 3.0))) * sum_fourth_deviations
+        - 3.0 * (n - 1.0).powi(2) / ((n - 2.0) * (n - 3.0));
+    
+    Ok(kurtosis)
+}
+
+fn calculate_iqr(data: &[f64]) -> Result<f64> {
+    if data.is_empty() {
+        return Err(anyhow!("Empty data"));
+    }
+    
+    let q1 = calculate_percentile(data, 25.0)?;
+    let q3 = calculate_percentile(data, 75.0)?;
+    Ok(q3 - q1)
+}
+
+fn calculate_count(data: &[f64]) -> Result<usize> {
+    Ok(data.len())
 }
 
 fn calculate_autocorrelation(data: &[f64]) -> Result<f64> {
