@@ -13,15 +13,12 @@ name = "fmod_slice"
 path = "src/main.rs"
 
 [dependencies]
-# Web框架
-axum = { version = "0.7", features = ["macros"] }
-tower = "0.4"
-tower-http = { version = "0.5", features = ["cors", "trace"] }
-http = "1.0"  # HTTP类型
+# 轻量HTTP（仅用于健康检查）
+axum = { version = "0.7", default-features = false, features = ["json", "tokio", "http1"] }
 
 # 异步运行时
 tokio = { version = "1.0", features = ["full"] }
-futures = "0.3"  # Futures for async programming
+futures = "0.3"
 
 # 序列化
 serde = { version = "1.0", features = ["derive"] }
@@ -32,10 +29,8 @@ serde_yaml = "0.9"
 regex = "1.10"
 lazy_static = "1.4"
 
-# 数据库
-sqlx = { version = "0.7", features = ["runtime-tokio-rustls", "sqlite", "postgres", "chrono", "uuid"] }
-rusqlite = { version = "0.30", features = ["bundled"] }  # SQLite本地驱动
-tokio-postgres = { version = "0.7", features = ["with-uuid-1", "with-chrono-0_4"] }  # PostgreSQL异步驱动
+# 数据库（仅保留实际使用的SQLite）
+rusqlite = { version = "0.30", features = ["bundled"] }
 
 # 时间处理
 chrono = { version = "0.4", features = ["serde"] }
@@ -53,54 +48,44 @@ tracing = "0.1"
 tracing-subscriber = { version = "0.3", features = ["env-filter"] }
 
 # 配置
-dotenv = "0.15"  # 为了兼容现有代码
+dotenv = "0.15"
 config = "0.14"
 toml = "0.8"
-url = "2.5"  # 用于解析数据库URL
-num_cpus = "1.16"  # CPU核心数检测
+url = "2.5"
+num_cpus = "1.16"
 
-# 日志和监控 - 轻量化
+# 测试和数据生成（仅保留实际使用的）
 fake = { version = "2.9", features = ["derive"] }
-wiremock = "0.5"
-mockall = "0.12"
-criterion = { version = "0.5", features = ["html_reports"] }
 tempfile = "3.8"
-rand = "0.8"  # 用于测试中的随机数生成
-http-body-util = "0.1.3"
-once_cell = "1.21.3"
+rand = "0.8"
+rand_distr = "0.4"
 
-# 开发工具
-[dev-dependencies]
-serial_test = "3.0"
-axum-test = "14.0"
+# gRPC支持（核心依赖）
+tonic = "0.13"
+tonic-build = "0.13"
+tonic-web = "0.13"
+prost = "0.13"
+tower = "0.5"
+tower-http = { version = "0.6", features = ["cors"] }
+once_cell = "1.21.3"
 
 # 缓存
 redis = { version = "0.24", features = ["tokio-comp"] }
 
-# Base64编码（用于SQLite blob处理）
+# Base64编码
 base64 = "0.21"
 
 # 密码哈希
 argon2 = "0.5"
 
-# 测试
+[dev-dependencies]
+serial_test = "3.0"
 tokio-test = "0.4"
-
-# 文档生成
-serde_json = "1.0"
-regex = "1.0"
 
 [features]
 default = []
-auto-docs = []  # 启用自动文档生成
-runtime-collection = []  # 启用运行时API数据收集
-
-# 基准测试配置 - 仅在开发环境使用
-# [[bench]]
-# name = "performance_benchmark"
-# harness = false
 
 [build-dependencies]
-# 构建时依赖
+tonic-build = "0.13"
 
 

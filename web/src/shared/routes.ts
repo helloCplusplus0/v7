@@ -5,7 +5,7 @@
 
 import type { RouteDefinition } from './types';
 import { 
-  sliceMetadata, 
+  getSliceMetadata, 
   getSliceComponent, 
   getSliceNames 
 } from './registry';
@@ -15,7 +15,7 @@ export const getRoutes = (): RouteDefinition[] => {
   const sliceNames = getSliceNames();
   
   return sliceNames.map(name => {
-    const metadata = sliceMetadata[name];
+    const metadata = getSliceMetadata(name);
     const component = getSliceComponent(name);
     
     return {

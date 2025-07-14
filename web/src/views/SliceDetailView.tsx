@@ -8,8 +8,8 @@
  */
 
 import { useParams } from "@solidjs/router";
-import { createSignal, onMount, Suspense } from "solid-js";
-import { getSliceComponent, hasSlice } from "../shared/registry";
+import { createSignal, onMount, Suspense, lazy } from "solid-js";
+import { hasSlice } from "../shared/registry";
 
 export default function SliceDetailView() {
   const params = useParams();
@@ -35,7 +35,12 @@ export default function SliceDetailView() {
   }
 
   const name = sliceName();
-  const SliceComponent = getSliceComponent(name);
+  
+  // 动态加载切片组件
+  const SliceComponent = lazy(async () => {
+    const sliceModule = await import(`../../slices/${name}/index.ts`);
+    return { default: sliceModule.default || sliceModule[Object.keys(sliceModule)[0]] };
+  });
 
   return (
     <div class="slice-detail-container">

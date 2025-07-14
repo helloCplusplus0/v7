@@ -13,7 +13,7 @@ pub struct Item {
 }
 
 /// 创建Item请求
-#[derive(Debug, Deserialize)]
+#[derive(Debug, Clone, Deserialize)]
 pub struct CreateItemRequest {
     pub name: String,
     pub description: Option<String>,
@@ -21,7 +21,7 @@ pub struct CreateItemRequest {
 }
 
 /// 更新Item请求
-#[derive(Debug, Deserialize)]
+#[derive(Debug, Clone, Deserialize)]
 pub struct UpdateItemRequest {
     pub name: Option<String>,
     pub description: Option<String>,
@@ -197,5 +197,231 @@ impl Item {
         }
 
         self.updated_at = Utc::now();
+    }
+}
+
+// ===== Proto转换实现 =====
+use crate::v7_backend as proto;
+
+impl From<proto::CreateItemRequest> for CreateItemRequest {
+    fn from(proto_req: proto::CreateItemRequest) -> Self {
+        Self {
+            name: proto_req.name,
+            description: proto_req.description,
+            value: proto_req.value,
+        }
+    }
+}
+
+impl From<proto::UpdateItemRequest> for (String, UpdateItemRequest) {
+    fn from(proto_req: proto::UpdateItemRequest) -> Self {
+        let update_req = UpdateItemRequest {
+            name: proto_req.name,
+            description: proto_req.description,
+            value: proto_req.value,
+        };
+        (proto_req.id, update_req)
+    }
+}
+
+impl From<proto::ListItemsRequest> for ListItemsQuery {
+    fn from(proto_req: proto::ListItemsRequest) -> Self {
+        Self {
+            limit: proto_req.limit.map(|l| l as u32),
+            offset: proto_req.offset.map(|o| o as u32),
+            sort_by: None, // Proto中没有sort_by字段，保持None
+            order: None,   // Proto中没有order字段，保持None
+        }
+    }
+}
+
+impl From<Item> for proto::Item {
+    fn from(item: Item) -> Self {
+        Self {
+            id: item.id,
+            name: item.name,
+            description: item.description,
+            value: item.value,
+            created_at: item.created_at.to_rfc3339(),
+            updated_at: item.updated_at.to_rfc3339(),
+        }
+    }
+}
+
+impl From<CreateItemResponse> for proto::CreateItemResponse {
+    fn from(resp: CreateItemResponse) -> Self {
+        Self {
+            success: true,
+            error: String::new(),
+            item: Some(resp.item.into()),
+        }
+    }
+}
+
+impl From<GetItemResponse> for proto::GetItemResponse {
+    fn from(resp: GetItemResponse) -> Self {
+        Self {
+            success: true,
+            error: String::new(),
+            item: Some(resp.item.into()),
+        }
+    }
+}
+
+impl From<UpdateItemResponse> for proto::UpdateItemResponse {
+    fn from(resp: UpdateItemResponse) -> Self {
+        Self {
+            success: true,
+            error: String::new(),
+            item: Some(resp.item.into()),
+        }
+    }
+}
+
+impl From<DeleteItemResponse> for proto::DeleteItemResponse {
+    fn from(_resp: DeleteItemResponse) -> Self {
+        Self {
+            success: true,
+            error: String::new(),
+        }
+    }
+}
+
+impl From<ListItemsResponse> for proto::ListItemsResponse {
+    fn from(resp: ListItemsResponse) -> Self {
+        Self {
+            success: true,
+            error: String::new(),
+            items: resp.items.into_iter().map(|item| item.into()).collect(),
+            total: resp.total as i32,
+        }
+    }
+}
+
+/// 错误到gRPC Proto响应的转换
+impl From<CrudError> for proto::CreateItemResponse {
+    fn from(error: CrudError) -> Self {
+        Self {
+            success: false,
+            error: error.to_string(),
+            item: None,
+        }
+    }
+}
+
+impl From<CrudError> for proto::GetItemResponse {
+    fn from(error: CrudError) -> Self {
+        Self {
+            success: false,
+            error: error.to_string(),
+            item: None,
+        }
+    }
+}
+
+impl From<CrudError> for proto::UpdateItemResponse {
+    fn from(error: CrudError) -> Self {
+        Self {
+            success: false,
+            error: error.to_string(),
+            item: None,
+        }
+    }
+}
+
+impl From<CrudError> for proto::DeleteItemResponse {
+    fn from(error: CrudError) -> Self {
+        Self {
+            success: false,
+            error: error.to_string(),
+        }
+    }
+}
+
+impl From<CrudError> for proto::ListItemsResponse {
+    fn from(error: CrudError) -> Self {
+        Self {
+            success: false,
+            error: error.to_string(),
+            items: vec![],
+            total: 0,
+        }
+    }
+}
+
+#[cfg(test)]
+mod proto_conversion_tests {
+    use super::*;
+    use crate::v7_backend as proto;
+    use chrono::Utc;
+
+    #[test]
+    fn test_create_item_request_conversion() {
+        let proto_req = proto::CreateItemRequest {
+            name: "测试项目".to_string(),
+            description: Some("测试描述".to_string()),
+            value: 100,
+        };
+
+        let internal_req: CreateItemRequest = proto_req.into();
+        assert_eq!(internal_req.name, "测试项目");
+        assert_eq!(internal_req.description, Some("测试描述".to_string()));
+        assert_eq!(internal_req.value, 100);
+    }
+
+    #[test]
+    fn test_item_to_proto_conversion() {
+        let item = Item {
+            id: "test-id".to_string(),
+            name: "测试项目".to_string(),
+            description: Some("测试描述".to_string()),
+            value: 100,
+            created_at: Utc::now(),
+            updated_at: Utc::now(),
+        };
+
+        let proto_item: proto::Item = item.into();
+        assert_eq!(proto_item.id, "test-id");
+        assert_eq!(proto_item.name, "测试项目");
+        assert_eq!(proto_item.description, Some("测试描述".to_string()));
+        assert_eq!(proto_item.value, 100);
+    }
+
+    #[test]
+    fn test_create_item_response_conversion() {
+        let item = Item {
+            id: "test-id".to_string(),
+            name: "测试项目".to_string(),
+            description: Some("测试描述".to_string()),
+            value: 100,
+            created_at: Utc::now(),
+            updated_at: Utc::now(),
+        };
+
+        let response = CreateItemResponse {
+            item: item.clone(),
+            message: "创建成功".to_string(),
+        };
+
+        let proto_response: proto::CreateItemResponse = response.into();
+        assert!(proto_response.success);
+        assert!(proto_response.error.is_empty());
+        assert!(proto_response.item.is_some());
+        
+        let proto_item = proto_response.item.unwrap();
+        assert_eq!(proto_item.id, "test-id");
+        assert_eq!(proto_item.name, "测试项目");
+        assert_eq!(proto_item.description, Some("测试描述".to_string()));
+    }
+
+    #[test]
+    fn test_error_to_proto_conversion() {
+        let error = CrudError::ItemNotFound { id: "test-id".to_string() };
+        let proto_response: proto::CreateItemResponse = error.into();
+        
+        assert!(!proto_response.success);
+        assert!(proto_response.error.contains("Item不存在"));
+        assert!(proto_response.error.contains("test-id"));
+        assert!(proto_response.item.is_none());
     }
 }

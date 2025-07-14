@@ -1,96 +1,99 @@
-use crate::core::{AppError, Result};
+//! 认证业务函数
+//! 基于静态分发的零开销抽象实现
+
 use crate::infra::di::inject;
-use crate::infra::http::HttpResponse;
-use axum::Json;
+use crate::slices::auth::{
+    interfaces::AuthService,
+    types::{AuthResult, LoginRequest, LoginResponse, UserSession},
+};
 
-use super::interfaces::AuthService;
-use super::types::{AuthError, LoginRequest, LoginResponse, UserSession};
-
-// 🚀 未来的过程宏使用示例（当前注释掉）
-// use crate::core::auto_docs::api_endpoint;
-
-/// ⭐ v7核心特性：静态分发登录函数
+/// ⭐ v7核心函数：用户登录
 ///
-/// 函数路径: `auth.login`
-/// HTTP路由: POST /api/auth/login
-/// 性能特性: 编译时单态化，零运行时开销
+/// 使用静态分发，编译器会将整个调用链内联，实现零运行时开销
+/// 
+/// # Arguments
+/// * `auth_service` - 认证服务实现（编译时确定类型）
+/// * `req` - 登录请求
+///
+/// # Returns
+/// 
+/// 成功返回包含JWT令牌的登录响应
 ///
 /// # Errors
 ///
 /// 返回错误当：
 /// - 用户名或密码无效
-/// - 用户不存在
-/// - 内部认证服务失败
-// #[api_endpoint] // 🚀 未来启用过程宏
-pub async fn login<A>(auth_service: A, req: LoginRequest) -> Result<LoginResponse>
+/// - 内部服务错误
+pub async fn login<A>(auth_service: A, req: LoginRequest) -> AuthResult<LoginResponse>
 where
     A: AuthService,
 {
     // 直接调用服务，编译器会完全内联
-    auth_service.authenticate(req).await.map_err(|e| {
-        Box::new(match e {
-            AuthError::InvalidCredentials => AppError::unauthorized("无效的用户名或密码"),
-            AuthError::UserNotFound => AppError::not_found("用户不存在"),
-            _ => AppError::internal(format!("认证失败: {e}")),
-        })
-    })
+    auth_service.authenticate(req).await
 }
 
-/// ⭐ v7核心特性：静态分发令牌验证函数
+/// ⭐ v7核心函数：令牌验证
 ///
-/// 函数路径: `auth.validate_token`
-/// HTTP路由: GET /api/auth/validate
+/// 静态分发确保最优性能，编译器会完全内联整个验证过程
+///
+/// # Arguments
+/// * `auth_service` - 认证服务实现
+/// * `token` - JWT令牌
+///
+/// # Returns
+///
+/// 成功返回用户会话信息
+///
+/// # Errors
+///
+/// 返回错误当：
+/// - 令牌无效或已过期
+/// - 用户会话不存在
+pub async fn validate_token<A>(auth_service: A, token: String) -> AuthResult<UserSession>
+where
+    A: AuthService,
+{
+    auth_service.validate_token(&token).await
+}
+
+/// ⭐ v7核心函数：撤销令牌
+///
+/// 基于静态分发的令牌撤销，编译期优化确保最佳性能
+///
+/// # Arguments
+/// * `auth_service` - 认证服务实现
+/// * `token` - 要撤销的JWT令牌
 ///
 /// # Errors
 ///
 /// 返回错误当：
 /// - 令牌无效
-/// - 令牌已过期
-/// - 内部验证服务失败
-pub async fn validate_token<A>(auth_service: A, token: String) -> Result<UserSession>
+/// - 服务内部错误
+pub async fn revoke_token<A>(auth_service: A, token: String) -> AuthResult<()>
 where
     A: AuthService,
 {
-    auth_service.validate_token(&token).await.map_err(|e| {
-        Box::new(match e {
-            AuthError::InvalidToken => AppError::unauthorized("无效的令牌"),
-            AuthError::TokenExpired => AppError::unauthorized("令牌已过期"),
-            _ => AppError::internal(format!("令牌验证失败: {e}")),
-        })
-    })
+    auth_service.revoke_token(&token).await
 }
 
-/// ⭐ v7核心特性：撤销令牌函数
+/// ⭐ v7辅助函数：获取用户ID
 ///
-/// 函数路径: `auth.revoke_token`
-/// HTTP路由: POST /api/auth/logout
+/// 从令牌中提取用户ID，利用静态分发的性能优势
 ///
-/// # Errors
+/// # Arguments
+/// * `auth_service` - 认证服务实现
+/// * `token` - JWT令牌
 ///
-/// 返回错误当：
-/// - 令牌撤销失败
-/// - 内部服务错误
-pub async fn revoke_token<A>(auth_service: A, token: String) -> Result<()>
-where
-    A: AuthService,
-{
-    auth_service
-        .revoke_token(&token)
-        .await
-        .map_err(|e| Box::new(AppError::internal(format!("令牌撤销失败: {e}"))))
-}
-
-/// ⭐ v7核心特性：跨切片函数调用
+/// # Returns
 ///
-/// 供其他切片使用的内部函数
-/// 函数路径: `auth.get_user_id`
+/// 成功返回用户ID字符串
 ///
 /// # Errors
 ///
 /// 返回错误当：
 /// - 令牌验证失败
 /// - 用户会话无效
-pub async fn get_user_id<A>(auth_service: A, token: String) -> Result<String>
+pub async fn get_user_id<A>(auth_service: A, token: String) -> AuthResult<String>
 where
     A: AuthService,
 {
@@ -108,7 +111,7 @@ where
 /// 返回错误当：
 /// - 认证失败
 /// - 内部服务错误
-pub async fn internal_authenticate(username: &str, password: &str) -> Result<LoginResponse> {
+pub async fn internal_authenticate(username: &str, password: &str) -> AuthResult<LoginResponse> {
     let user_repo = super::service::MemoryUserRepository::new();
     let token_repo = super::service::MemoryTokenRepository::new();
     let auth_service = super::service::JwtAuthService::new(user_repo, token_repo);
@@ -120,126 +123,6 @@ pub async fn internal_authenticate(username: &str, password: &str) -> Result<Log
 
     // 这个调用会被编译器完全内联，零运行时开销
     login(auth_service, req).await
-}
-
-/// ⭐ v7核心特性：HTTP适配器函数
-///
-/// 将静态分发的业务函数适配到HTTP层
-/// HTTP登录处理函数
-///
-/// POST /api/auth/login
-/// 验证用户凭证并返回JWT令牌
-pub async fn api_login(Json(req): Json<LoginRequest>) -> Json<HttpResponse<LoginResponse>> {
-    Json(http_login(req).await)
-}
-
-pub async fn http_login(req: LoginRequest) -> HttpResponse<LoginResponse> {
-    // 从依赖注入容器获取服务
-    type AuthServiceType = super::service::JwtAuthService<
-        super::service::MemoryUserRepository,
-        super::service::MemoryTokenRepository,
-    >;
-    let auth_service = inject::<AuthServiceType>();
-
-    // 调用静态分发的业务函数
-    match login(auth_service, req).await {
-        Ok(response) => HttpResponse::success(response),
-        Err(error) => HttpResponse {
-            status: 400,
-            message: "Error".to_string(),
-            data: None,
-            error: Some(crate::infra::http::ErrorDetail {
-                code: "AUTH_ERROR".to_string(),
-                message: error.to_string(),
-                context: None,
-                location: None,
-            }),
-            trace_id: None,
-            timestamp: chrono::Utc::now().timestamp(),
-        },
-    }
-}
-
-/// HTTP令牌验证处理函数
-///
-/// GET /api/auth/validate
-/// 验证JWT令牌的有效性并返回用户会话信息
-pub async fn api_validate_token(headers: axum::http::HeaderMap) -> Json<HttpResponse<UserSession>> {
-    // 从Authorization头获取令牌
-    let token = extract_bearer_token(&headers).unwrap_or_default();
-    Json(http_validate_token(token).await)
-}
-
-pub async fn http_validate_token(token: String) -> HttpResponse<UserSession> {
-    type AuthServiceType = super::service::JwtAuthService<
-        super::service::MemoryUserRepository,
-        super::service::MemoryTokenRepository,
-    >;
-    let auth_service = inject::<AuthServiceType>();
-
-    match validate_token(auth_service, token).await {
-        Ok(session) => HttpResponse::success(session),
-        Err(error) => HttpResponse {
-            status: 401,
-            message: "Error".to_string(),
-            data: None,
-            error: Some(crate::infra::http::ErrorDetail {
-                code: "AUTH_ERROR".to_string(),
-                message: error.to_string(),
-                context: None,
-                location: None,
-            }),
-            trace_id: None,
-            timestamp: chrono::Utc::now().timestamp(),
-        },
-    }
-}
-
-/// HTTP用户登出处理函数
-///
-/// POST /api/auth/logout
-/// 撤销JWT令牌，使其失效
-pub async fn api_revoke_token(headers: axum::http::HeaderMap) -> Json<HttpResponse<()>> {
-    // 从Authorization头获取令牌
-    let token = extract_bearer_token(&headers).unwrap_or_default();
-    Json(http_revoke_token(token).await)
-}
-
-pub async fn http_revoke_token(token: String) -> HttpResponse<()> {
-    type AuthServiceType = super::service::JwtAuthService<
-        super::service::MemoryUserRepository,
-        super::service::MemoryTokenRepository,
-    >;
-    let auth_service = inject::<AuthServiceType>();
-
-    match revoke_token(auth_service, token).await {
-        Ok(()) => HttpResponse::success(()),
-        Err(error) => HttpResponse {
-            status: 400,
-            message: "Error".to_string(),
-            data: None,
-            error: Some(crate::infra::http::ErrorDetail {
-                code: "AUTH_ERROR".to_string(),
-                message: error.to_string(),
-                context: None,
-                location: None,
-            }),
-            trace_id: None,
-            timestamp: chrono::Utc::now().timestamp(),
-        },
-    }
-}
-
-/// 从请求头中提取Bearer令牌
-fn extract_bearer_token(headers: &axum::http::HeaderMap) -> Option<String> {
-    headers
-        .get("authorization")
-        .and_then(|value| value.to_str().ok())
-        .and_then(|auth_header| {
-            auth_header
-                .strip_prefix("Bearer ")
-                .map(std::string::ToString::to_string)
-        })
 }
 
 #[cfg(test)]

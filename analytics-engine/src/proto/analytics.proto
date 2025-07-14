@@ -1,0 +1,87 @@
+syntax = "proto3";
+
+package analytics;
+
+// 分析引擎服务
+service AnalyticsEngine {
+  // 单次分析
+  rpc Analyze(AnalysisRequest) returns (AnalysisResponse);
+  
+  // 批量分析
+  rpc BatchAnalyze(BatchAnalysisRequest) returns (stream AnalysisResponse);
+  
+  // 健康检查
+  rpc HealthCheck(HealthCheckRequest) returns (HealthCheckResponse);
+  
+  // 获取支持的算法列表
+  rpc GetSupportedAlgorithms(Empty) returns (SupportedAlgorithmsResponse);
+}
+
+// 分析请求
+message AnalysisRequest {
+  string request_id = 1;
+  string algorithm = 2;
+  repeated double data = 3;
+  map<string, string> params = 4;
+  AnalysisOptions options = 5;
+}
+
+// 批量分析请求
+message BatchAnalysisRequest {
+  string batch_id = 1;
+  repeated AnalysisRequest requests = 2;
+}
+
+// 分析选项
+message AnalysisOptions {
+  bool prefer_rust = 1;      // 优先使用Rust实现
+  bool allow_python = 2;     // 允许Python实现
+  int32 timeout_ms = 3;      // 超时时间(毫秒)
+  bool include_metadata = 4; // 包含执行元数据
+}
+
+// 分析响应
+message AnalysisResponse {
+  string request_id = 1;
+  bool success = 2;
+  string error_message = 3;
+  
+  // 结果数据(JSON格式)
+  string result_json = 4;
+  
+  // 执行元数据
+  ExecutionMetadata metadata = 5;
+}
+
+// 执行元数据
+message ExecutionMetadata {
+  string implementation = 1;    // "rust" or "python"
+  int64 execution_time_ms = 2; // 执行时间
+  string algorithm = 3;        // 使用的算法
+  int32 data_size = 4;        // 数据大小
+  map<string, string> stats = 5; // 额外统计信息
+}
+
+// 健康检查
+message HealthCheckRequest {}
+
+message HealthCheckResponse {
+  bool healthy = 1;
+  string version = 2;
+  map<string, string> capabilities = 3;
+}
+
+// 支持的算法
+message Empty {}
+
+message SupportedAlgorithmsResponse {
+  repeated AlgorithmInfo algorithms = 1;
+}
+
+message AlgorithmInfo {
+  string name = 1;
+  string description = 2;
+  repeated string implementations = 3; // ["rust", "python"]
+  repeated string required_params = 4;
+  repeated string optional_params = 5;
+} 

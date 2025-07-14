@@ -2,5 +2,4 @@
 //!
 //! 组织所有集成测试模块
 
-mod basic_test;
-mod web_test;
+mod mvp_crud_grpc_tests;

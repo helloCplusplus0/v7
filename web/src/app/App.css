@@ -6,6 +6,7 @@
  * 2. 底部导航，最高层级
  * 3. 黄金比例布局
  * 4. 统一的视觉语言
+ * 5. 移动端优先的响应式设计
  */
 
 /* 全局重置 */
@@ -15,11 +16,21 @@
   box-sizing: border-box;
 }
 
+/* 移动端优化：防止文本放大 */
+html {
+  -webkit-text-size-adjust: 100%;
+  -moz-text-size-adjust: 100%;
+  -ms-text-size-adjust: 100%;
+  text-size-adjust: 100%;
+}
+
 body {
   font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
   background: #f8f9fa;
   color: #2c3e50;
   line-height: 1.6;
+  /* 移动端优化：防止横向滚动 */
+  overflow-x: hidden;
 }
 
 /* 应用容器 */
@@ -31,7 +42,8 @@ body {
 
 .app-container {
   flex: 1;
-  padding-bottom: 80px; /* 为底部导航留空间 */
+  /* 移动端优化：考虑安全区域 */
+  padding-bottom: calc(80px + env(safe-area-inset-bottom));
 }
 
 /* Telegram风格底部导航 */
@@ -43,6 +55,8 @@ body {
   background: #ffffff;
   border-top: 1px solid #e1e8ed;
   padding: 12px 16px;
+  /* 移动端优化：安全区域支持 */
+  padding-bottom: calc(12px + env(safe-area-inset-bottom));
   z-index: 1000;
   backdrop-filter: blur(10px);
   -webkit-backdrop-filter: blur(10px);
@@ -66,9 +80,11 @@ body {
   border: 1px solid #e1e8ed;
   border-radius: 20px;
   background: #f8f9fa;
-  font-size: 14px;
+  font-size: 16px; /* 移动端优化：防止iOS缩放 */
   outline: none;
   transition: all 0.2s ease;
+  /* 移动端优化：触摸友好 */
+  min-height: 44px;
 }
 
 .search-input:focus {
@@ -87,11 +103,18 @@ body {
   color: white;
   text-decoration: none;
   transition: all 0.2s ease;
+  /* 移动端优化：触摸反馈 */
+  -webkit-tap-highlight-color: rgba(0, 136, 204, 0.2);
+  touch-action: manipulation;
 }
 
 .home-button:hover {
   background: #006699;
   transform: scale(1.05);
+}
+
+.home-button:active {
+  transform: scale(0.95);
 }
 
 .home-icon {
@@ -125,12 +148,19 @@ body {
   aspect-ratio: 1.618 / 1;
   display: flex;
   flex-direction: column;
+  /* 移动端优化：触摸反馈 */
+  -webkit-tap-highlight-color: rgba(0, 136, 204, 0.1);
+  touch-action: manipulation;
 }
 
 .slice-card-telegram:hover {
   border-color: #0088cc;
   box-shadow: 0 4px 12px rgba(0, 136, 204, 0.1);
   transform: translateY(-2px);
+}
+
+.slice-card-telegram:active {
+  transform: translateY(0);
 }
 
 /* 切片头部 */
@@ -147,6 +177,10 @@ body {
   color: #2c3e50;
   margin: 0;
   flex: 1;
+  /* 移动端优化：文本溢出处理 */
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .slice-status-telegram {
@@ -155,6 +189,8 @@ body {
   gap: 4px;
   font-size: 12px;
   color: #657786;
+  /* 移动端优化：防止收缩 */
+  flex-shrink: 0;
 }
 
 .status-icon {
@@ -172,6 +208,11 @@ body {
   margin-bottom: 16px;
   line-height: 1.4;
   flex: 1;
+  /* 移动端优化：多行文本溢出 */
+  display: -webkit-box;
+  -webkit-line-clamp: 3;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
 }
 
 /* 指标区域 */
@@ -193,6 +234,8 @@ body {
   display: flex;
   align-items: center;
   gap: 6px;
+  /* 移动端优化：防止收缩 */
+  flex-shrink: 0;
 }
 
 .metric-icon {
@@ -208,6 +251,8 @@ body {
   display: flex;
   align-items: center;
   gap: 4px;
+  /* 移动端优化：防止收缩 */
+  flex-shrink: 0;
 }
 
 .metric-value {
@@ -232,20 +277,41 @@ body {
   color: #99aab5;
 }
 
-/* 响应式设计 */
+/* ===== 移动端优化响应式设计 ===== */
+
+/* 大屏幕（桌面） */
+@media (min-width: 1200px) {
+  .dashboard-telegram {
+    padding: 24px 20px;
+  }
+  
+  .slices-container {
+    grid-template-columns: repeat(auto-fill, minmax(350px, 1fr));
+    gap: 20px;
+  }
+}
+
+/* 中等屏幕（平板横屏） */
+@media (max-width: 1024px) {
+  .slices-container {
+    grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
+  }
+}
+
+/* 小平板（平板竖屏） */
 @media (max-width: 768px) {
   .dashboard-telegram {
     padding: 16px 12px;
   }
   
   .slices-container {
-    grid-template-columns: 1fr;
+    grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
     gap: 12px;
   }
   
   .slice-card-telegram {
     padding: 16px;
-    aspect-ratio: 1.618 / 1;
+    aspect-ratio: 1.5 / 1; /* 平板优化比例 */
   }
   
   .header-content {
@@ -260,11 +326,121 @@ body {
   .home-icon {
     font-size: 16px;
   }
+  
+  .slice-title-telegram {
+    font-size: 16px;
+  }
 }
 
-@media (max-width: 480px) {
+/* 大手机（iPhone Plus/Max系列） */
+@media (max-width: 640px) {
+  .dashboard-telegram {
+    padding: 12px 8px;
+  }
+  
+  .slices-container {
+    grid-template-columns: 1fr;
+    gap: 10px;
+  }
+  
   .slice-card-telegram {
-    aspect-ratio: 1.4 / 1; /* 移动端稍微调整比例 */
+    aspect-ratio: 1.4 / 1; /* 大手机优化比例 */
+    padding: 14px;
+  }
+  
+  .slice-description-telegram {
+    -webkit-line-clamp: 2; /* 减少显示行数 */
+  }
+}
+
+/* 标准手机（iPhone 12/13/14系列） */
+@media (max-width: 480px) {
+  .dashboard-telegram {
+    padding: 10px 6px;
+  }
+  
+  .slice-card-telegram {
+    aspect-ratio: 1.3 / 1; /* 标准手机优化比例 */
+    padding: 12px;
+  }
+  
+  .slice-title-telegram {
+    font-size: 15px;
+  }
+  
+  .slice-description-telegram {
+    font-size: 13px;
+    -webkit-line-clamp: 2;
+  }
+  
+  .metric-item-telegram {
+    padding: 4px 0;
+  }
+  
+  .metric-label {
+    font-size: 12px;
+  }
+  
+  .metric-value {
+    font-size: 13px;
+  }
+  
+  .header-content {
+    gap: 6px;
+  }
+  
+  .search-input {
+    font-size: 16px; /* 保持16px防止iOS缩放 */
+    padding: 8px 12px;
+  }
+}
+
+/* 小手机（iPhone SE系列） */
+@media (max-width: 375px) {
+  .dashboard-telegram {
+    padding: 8px 4px;
+  }
+  
+  .slice-card-telegram {
+    aspect-ratio: 1.2 / 1; /* 小手机优化比例 */
+    padding: 10px;
+  }
+  
+  .slice-title-telegram {
+    font-size: 14px;
+  }
+  
+  .slice-description-telegram {
+    font-size: 12px;
+    -webkit-line-clamp: 1; /* 只显示一行 */
+  }
+  
+  .metric-info {
+    gap: 4px;
+  }
+  
+  .metric-value-container {
+    gap: 2px;
+  }
+}
+
+/* 超小屏幕（iPhone SE 1代等） */
+@media (max-width: 320px) {
+  .slice-card-telegram {
+    aspect-ratio: 1.1 / 1; /* 超小屏优化比例 */
+    padding: 8px;
+  }
+  
+  .slice-metrics-telegram {
+    gap: 4px;
+  }
+  
+  .metric-item-telegram {
+    padding: 2px 0;
+  }
+  
+  .slice-footer-telegram {
+    padding-top: 8px;
   }
 }
 
@@ -356,6 +532,10 @@ body {
   font-size: 14px;
   font-weight: 500;
   transition: all 0.2s ease;
+  /* 移动端优化：触摸友好 */
+  min-height: 44px;
+  -webkit-tap-highlight-color: rgba(255, 255, 255, 0.2);
+  touch-action: manipulation;
 }
 
 .nav-back-btn:hover {
@@ -363,11 +543,19 @@ body {
   transform: translateX(-2px);
 }
 
+.nav-back-btn:active {
+  transform: translateX(0);
+}
+
 .slice-title {
   margin: 0;
   font-size: 18px;
   font-weight: 600;
   color: var(--text-primary);
+  /* 移动端优化：文本溢出处理 */
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .slice-version {
@@ -379,7 +567,7 @@ body {
   font-weight: 500;
 }
 
-/* 响应式设计 */
+/* 切片导航响应式设计 */
 @media (max-width: 768px) {
   .slice-navigation {
     padding: 10px 12px;
@@ -392,5 +580,92 @@ body {
   .nav-back-btn {
     padding: 6px 10px;
     font-size: 13px;
+    min-height: 40px;
+  }
+}
+
+@media (max-width: 480px) {
+  .slice-navigation {
+    padding: 8px 10px;
+  }
+  
+  .slice-title {
+    font-size: 15px;
+  }
+  
+  .nav-back-btn {
+    padding: 5px 8px;
+    font-size: 12px;
+    min-height: 36px;
+  }
+}
+
+/* ===== 移动端特殊优化 ===== */
+
+/* 横屏适配 */
+@media (max-height: 500px) and (orientation: landscape) {
+  .app-container {
+    padding-bottom: 60px; /* 横屏时减少底部空间 */
+  }
+  
+  .header-telegram {
+    padding: 8px 16px;
+  }
+  
+  .slice-card-telegram {
+    aspect-ratio: 2 / 1; /* 横屏优化比例 */
+  }
+}
+
+/* 高分辨率屏幕优化 */
+@media (-webkit-min-device-pixel-ratio: 2), (min-resolution: 192dpi) {
+  .slice-card-telegram {
+    border-width: 0.5px; /* 高分辨率屏幕细边框 */
+  }
+}
+
+/* 深色模式支持 */
+@media (prefers-color-scheme: dark) {
+  body {
+    background: #1a1a1a;
+    color: #ffffff;
+  }
+  
+  .slice-card-telegram {
+    background: #2d2d2d;
+    border-color: #404040;
+    color: #ffffff;
+  }
+  
+  .header-telegram {
+    background: #2d2d2d;
+    border-top-color: #404040;
+  }
+  
+  .search-input {
+    background: #404040;
+    border-color: #555555;
+    color: #ffffff;
+  }
+  
+  .search-input::placeholder {
+    color: #999999;
+  }
+}
+
+/* 减少动画偏好 */
+@media (prefers-reduced-motion: reduce) {
+  * {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
+  
+  .slice-card-telegram:hover {
+    transform: none;
+  }
+  
+  .home-button:hover {
+    transform: none;
   }
 } 

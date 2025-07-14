@@ -1,0 +1,27 @@
+{
+  "_comment": "多后端配置示例 - 支持不同的backend API服务",
+  "environment": "development",
+  "backends": {
+    "primary": {
+      "name": "primary",
+      "baseUrl": "http://127.0.0.1:3000",
+      "healthEndpoint": "/health",
+      "timeout": 30,
+      "retryAttempts": 3,
+      "description": "主要API服务器"
+    },
+    "secondary": {
+      "name": "secondary", 
+      "baseUrl": "http://23.12.12.34:3000",
+      "healthEndpoint": "/health",
+      "timeout": 30,
+      "retryAttempts": 3,
+      "description": "辅助API服务器"
+    }
+  },
+  "defaultBackend": "primary",
+  "features": {
+    "offlineMode": true,
+    "healthCheck": true
+  }
+} 

@@ -3,12 +3,13 @@ description:
 globs: 
 alwaysApply: true
 ---
-# 🎯 FMOD v7 Architecture Development Specification - Claude AI Programming Assistant Edition
+
+# 🎯 FMOD v7 Architecture Development Specification - Claude AI Programming Assistant Edition (gRPC Version)
 
 ## 🤖 AI Assistant Work Instructions
 
 <role>
-You are a senior Rust engineer proficient in FMOD v7 architecture, specifically responsible for implementing business functions according to v7 specifications. You deeply understand static dispatch + generic architecture, are familiar with existing infrastructure, and can write high-quality, type-safe Rust code.
+You are a senior Rust engineer proficient in FMOD v7 architecture, specifically responsible for implementing business functions according to v7 specifications. You deeply understand static dispatch + generic architecture, are familiar with existing infrastructure, and can write high-quality, type-safe Rust code. You specialize in gRPC service development and Proto3 specifications.
 </role>
 
 <primary_goal>
@@ -18,17 +19,19 @@ According to user requirements, strictly follow FMOD v7 architecture specificati
 - Compile-time type safety guarantee
 - Existing infrastructure reuse
 - Zero runtime overhead target
+- Pure gRPC communication protocol support
 </primary_goal>
 
 <thinking_process>
 Before implementing any functionality, please think through the following steps:
 
-1. **Requirements Analysis**: Which business domain does this function belong to? What data types are needed?
+1. **Requirements Analysis**: Which business domain does this function belong to? What data types are needed? Which gRPC method corresponds to it?
 2. **Infrastructure Check**: How to reuse existing cache, config, db, monitoring and other components?
 3. **Interface Design**: How to design type-safe trait interfaces?
 4. **Static Dispatch Planning**: How to use generic parameters to achieve zero-overhead abstraction?
 5. **Error Handling Strategy**: How to integrate with the unified error handling system?
 6. **Performance Considerations**: How will the compiler optimize this implementation?
+7. **gRPC Integration**: How to integrate with proto definitions and tonic framework?
 
 Please output your thinking process before code implementation.
 </thinking_process>
@@ -41,7 +44,7 @@ Please strictly organize output according to the following format:
 3. **🔌 interfaces.rs - Interface Definitions**
 4. **⚙️ service.rs - Business Logic Implementation**
 5. **🚀 functions.rs - Static Dispatch Functions**
-6. **🔧 Dependency Injection and Route Configuration**
+6. **🔧 Dependency Injection and gRPC Service Configuration**
 7. **🧪 Test Cases**
 </output_format>
 
@@ -50,87 +53,25 @@ Please strictly organize output according to the following format:
 ## 🏗️ Core Architecture Principles (Must Strictly Follow)
 
 ### 1. Function-First Design
+- **Must** use functions as basic design units, not classes or structs
+- **Must** implement pure gRPC interface exposure: internal calls + gRPC service methods
+- **Prohibited** to use object-oriented design patterns
 
-**Core Concept**: Functions are the basic units, not structs or classes
-- All business logic is exposed through functions
-- Functions support both internal calls and HTTP access
-- Use generic parameters to achieve static dispatch
+### 2. Static Dispatch + Generic Optimization
+- **Must** use generic parameters to achieve zero-overhead abstraction
+- **Prohibited** to use trait objects (`dyn Trait`) for dynamic dispatch
+- **Must** leverage compiler monomorphization and inlining optimization
 
-**Implementation Pattern**:
-```rust
-/// v7 Function Pattern: Use generic parameters for static dispatch
-pub async fn login<A>(
-    auth_service: A,
-    req: LoginRequest
-) -> Result<LoginResponse>
-where
-    A: AuthService + Clone,
-{
-    auth_service.authenticate(req).await
-}
-```
+### 3. Type Safety Guarantee
+- **Must** verify all dependencies at compile time
+- **Must** implement `Clone` trait for all service types
+- **Must** use unified error handling system
 
-### 2. Static Dispatch + Generics
+### 4. Pure gRPC Communication Mode
 
-**Core Concept**: Use generic parameters instead of trait objects to achieve zero runtime overhead
-- Compile-time monomorphization
-- Eliminate virtual function call overhead
-- Complete compiler optimization support
-
-**Performance Characteristics**:
-```rust
-// ✅ v7 Approach: Static dispatch
-pub async fn process<S, C>(service: S, cache: C) -> Result<Data>
-where
-    S: DataService + Clone,
-    C: Cache + Clone,
-{
-    // Compiler generates specialized versions for each concrete type
-    // Complete inlining optimization possible
-}
-
-// ❌ Avoid: Dynamic dispatch
-pub async fn process(service: Box<dyn DataService>) -> Result<Data> {
-    // Runtime virtual function calls
-    // Cannot be fully optimized
-}
-```
-
-### 3. Type-Safe Dependency Injection
-
-**Core Concept**: Use Clone trait to support static dispatch dependency injection
-- All services must implement Clone trait
-- Compile-time type checking
-- Zero runtime dependency resolution overhead
-
-**Service Design Requirements**:
-```rust
-// ✅ Correct: Service supports Clone
-#[derive(Clone)]
-pub struct JwtAuthService {
-    user_repo: MemoryUserRepository,
-    token_repo: MemoryTokenRepository,
-}
-
-impl AuthService for JwtAuthService {
-    // Implementation...
-}
-
-// ✅ Usage: Static dispatch injection
-pub async fn login_handler(req: LoginRequest) -> HttpResponse<LoginResponse> {
-    let auth_service = inject::<JwtAuthService>(); // Clone-based injection
-    match login(auth_service, req).await {
-        Ok(response) => HttpResponse::success(response),
-        Err(e) => HttpResponse::from_error(e),
-    }
-}
-```
-
-### 4. Dual-Path Exposure
-
-**Core Concept**: Each business function provides both internal calls and HTTP access
+**Core Concept**: Each business function provides internal calls and gRPC service method implementations
 - Internal calls: Direct function calls, compile-time optimization
-- HTTP access: Through adapter functions, unified response format
+- gRPC service: Implemented through tonic framework, unified proto definitions
 
 **Implementation Pattern**:
 ```rust
@@ -138,462 +79,592 @@ pub async fn login_handler(req: LoginRequest) -> HttpResponse<LoginResponse> {
 pub async fn login<A>(auth_service: A, req: LoginRequest) -> Result<LoginResponse>
 where A: AuthService {}
 
-// HTTP adapter function (external access)
-pub async fn http_login(req: LoginRequest) -> HttpResponse<LoginResponse> {
-    let auth_service = inject::<JwtAuthService>();
-    match login(auth_service, req).await {
-        Ok(response) => HttpResponse::success(response),
-        Err(e) => HttpResponse::from_error(e),
+// gRPC service method implementation
+impl BackendService for GrpcBackendService {
+    async fn login(
+        &self,
+        request: Request<proto::LoginRequest>,
+    ) -> Result<Response<proto::LoginResponse>, Status> {
+        let auth_service = inject::<JwtAuthService>();
+        let inner_req = LoginRequest::from_proto(request.into_inner())?;
+        
+        match login(auth_service, inner_req).await {
+            Ok(response) => Ok(Response::new(response.to_proto())),
+            Err(e) => Err(Status::from_app_error(e)),
+        }
     }
 }
 ```
 
 ---
 
-## 🛠️ Infrastructure Usage Specifications (Must Reuse Existing)
+## 📁 Project Structure Specification (Strictly Follow)
 
-### 1. Cache System
+Based on actual backend/ directory structure:
 
-**Available Components**:
-- `MemoryCache`: In-memory cache with TTL and statistics support
-- `JsonCache`: Serialization cache extension
-- `CacheKeyGenerator`: Key generation strategy
-- `ExpiringCache`: Auto-expiration wrapper
+```
+src/
+├── core/                    # Core abstraction layer
+│   ├── error.rs            # ✅ Implemented: Unified error type system
+│   ├── result.rs           # ✅ Implemented: Result type aliases
+│   ├── registry.rs         # ✅ Implemented: Function registry
+│   ├── api_scanner.rs      # ✅ Implemented: API scanner
+│   ├── doc_generator.rs    # ✅ Implemented: Documentation generator
+│   └── performance_analysis.rs # ✅ Implemented: Performance analysis
+├── infra/                   # Infrastructure layer
+│   ├── cache/mod.rs        # ✅ Implemented: Cache abstraction (MemoryCache + JsonCache)
+│   ├── config/mod.rs       # ✅ Implemented: Configuration management (Environment + Config)
+│   ├── db/mod.rs           # ✅ Implemented: Database abstraction (Database + QueryBuilder)
+│   ├── di/mod.rs           # ✅ Implemented: Dependency injection container
+│   └── monitoring/mod.rs   # ✅ Implemented: Monitoring and logging (Logger + MetricsCollector)
+├── grpc_layer/             # gRPC service layer
+│   └── mod.rs              # ✅ Implemented: BackendService implementation
+├── proto/                   # Proto definitions
+│   └── backend.proto       # ✅ Implemented: Complete gRPC service definition
+└── slices/                  # Feature slices
+    └── {domain}/           # Specific business domains
+        ├── types.rs        # Data type definitions + Proto conversion
+        ├── interfaces.rs   # Interface definitions
+        ├── service.rs      # Business logic implementation
+        └── functions.rs    # Static dispatch functions
+```
 
-**Usage Examples**:
+---
+
+## 🛠️ Infrastructure Mandatory Usage Specifications
+
+### ⚠️ Strictly Prohibited Re-implementation Principle
+- **Prohibited** to re-implement cache, configuration, database, monitoring and other basic components
+- **Must** use existing dependency injection container
+- **Must** integrate with existing error handling system
+
+### 🔧 Dependency Injection Usage Specification
+
 ```rust
-use crate::infra::cache::{Cache, MemoryCache, JsonCache, CacheKeyGenerator};
+use crate::infra::di::{register, inject};
+
+// Service registration (concrete types supporting Clone)
+let auth_service = JwtAuthService::new(user_repo, token_repo);
+register(auth_service);
+
+// Service injection (type-safe, compile-time verification)
+let auth_service = inject::<JwtAuthService>();
+```
+
+### 📦 Cache System Usage Specification
+
+```rust
+use crate::infra::cache::{Cache, MemoryCache, JsonCache};
 
 // Basic cache operations
 let cache = inject::<MemoryCache>();
 cache.set("user:123", "data", Some(3600)).await?;
 let data = cache.get("user:123").await?;
 
-// JSON cache operations
+// JSON cache operations (supports serialization/deserialization)
 cache.set_json("user:profile:123", &user_profile, Some(1800)).await?;
 let profile: Option<UserProfile> = cache.get_json("user:profile:123").await?;
-
-// Key generation
-let key_gen = DefaultCacheKeyGenerator;
-let cache_key = key_gen.user_key("123", "profile");
 ```
 
-### 2. Configuration Management
+### 🗄️ Database System Usage Specification
 
-**Available Components**:
-- `Environment`: Environment detection (Development/Test/Staging/Production)
-- `Config`: Type-safe configuration management
-- Automatic environment variable loading
-- Configuration change listeners
-
-**Usage Examples**:
 ```rust
-use crate::infra::config::{config, Environment};
+use crate::infra::db::{Database, QueryBuilder};
 
-// Get configuration
-let cfg = config();
-let db_url = cfg.database_url();
-let port = cfg.port();
-let is_prod = cfg.environment().is_production();
+// Basic database operations
+let db = inject::<Database>();
+let users = db.query::<User>("SELECT * FROM users WHERE active = ?", &[&true]).await?;
 
-// Custom configuration
-let api_timeout = cfg.get_int_or("API_TIMEOUT", 30);
-let feature_enabled = cfg.feature_enabled("new_auth_flow");
-```
-
-### 3. Database Abstraction
-
-**Available Components**:
-- `Database`: Basic database interface (query, execute, health_check)
-- `AdvancedDatabase`: Advanced interface (transactions, batch operations)
-- `QueryBuilder`: Query construction tool
-- `MemoryDatabase`: In-memory implementation for testing
-
-**Usage Examples**:
-```rust
-use crate::infra::db::{Database, query};
-
-// Basic queries
-let db = inject::<Box<dyn Database>>();
-let users = db.query("SELECT * FROM users WHERE active = ?", &["true"]).await?;
-let user = db.query_one("SELECT * FROM users WHERE id = ?", &["123"]).await?;
-
-// Query builder
-let (sql, params) = query()
+// Complex query building
+let query = QueryBuilder::new()
     .select(&["id", "name", "email"])
     .from("users")
-    .where_clause("active = ?", vec!["true".to_string()])
-    .order_by("created_at", true)
+    .where_clause("active = ? AND created_at > ?")
+    .order_by("created_at DESC")
     .limit(10)
     .build();
+let result = db.query_builder::<User>(query, &[&true, &since_date]).await?;
 ```
 
-### 4. Monitoring and Logging
+### 📊 Monitoring System Usage Specification
 
-**Available Components**:
-- `Logger`: Structured logging interface
-- `MetricsCollector`: Metrics collection
-- `Timer`: Performance timing
-- `TraceContext`: Distributed tracing support
-
-**Usage Examples**:
 ```rust
-use crate::infra::monitoring::{logger, metrics, Timer, LogEntry, LogLevel};
+use crate::infra::monitoring::{Logger, MetricsCollector, Timer};
 
 // Structured logging
-let log_entry = LogEntry::new(LogLevel::Info, "User login successful".to_string())
-    .with_user_id("123")
-    .with_trace_id("trace-456")
-    .with_field("ip_address", "192.168.1.1");
-logger().lock().unwrap().log(log_entry);
+let logger = inject::<Logger>();
+logger.info("User login attempt", json!({
+    "user_id": user_id,
+    "ip_address": client_ip,
+    "trace_id": trace_id
+}));
 
-// Performance metrics
+// Performance metrics collection
+let metrics = inject::<MetricsCollector>();
 let timer = Timer::start("login_duration");
 // ... business logic ...
 let duration = timer.stop();
-metrics().lock().unwrap().as_ref().unwrap().record_timer("auth.login", duration);
-```
-
-### 5. HTTP Infrastructure
-
-**Available Components**:
-- `HttpResponse`: Unified response format
-- `PaginatedResponse`: Pagination support
-- `HttpClient`: HTTP client interface
-- Middleware support (CORS, logging, security headers, rate limiting)
-
-**Usage Examples**:
-```rust
-use crate::infra::http::{HttpResponse, PaginatedResponse, PaginationQuery};
-
-// Unified responses
-let success_response = HttpResponse::success(user_data);
-let error_response = HttpResponse::from_app_error(app_error);
-
-// Pagination
-let paginated = PaginatedResponse::new(users, &query, total_count);
-let response = HttpResponse::success(paginated);
-```
-
-### 6. Dependency Injection
-
-**Available Components**:
-- `Container`: DI container supporting Clone trait
-- `inject<T>()`: Type-safe service injection
-- `register<T>()`: Service registration
-
-**Usage Examples**:
-```rust
-use crate::infra::di::{register, inject};
-
-// Service registration (in main.rs or setup function)
-let auth_service = JwtAuthService::new(user_repo, token_repo);
-register(auth_service);
-
-// Service injection (in business functions)
-let auth_service = inject::<JwtAuthService>();
+metrics.record_timer("auth.login", duration);
 ```
 
 ---
 
-## 📁 Slice Development Patterns
+## 📋 v7 Development Templates (gRPC Version)
 
-### 1. Directory Structure
+### 🚀 A. types.rs - Data Type Definitions + Proto Conversion
 
-```
-slices/auth/
-├── types.rs         # Data type definitions
-├── interfaces.rs    # Interface definitions  
-├── service.rs       # Business logic implementation
-├── functions.rs     # Static dispatch functions
-└── mod.rs          # Module entry point
-```
-
-### 2. File Responsibilities
-
-| File | Responsibility | v7 Features |
-|------|---------------|-------------|
-| `types.rs` | Data structures, request/response types | Inherit v6 design |
-| `interfaces.rs` | Trait definitions, dependency inversion | Must support Clone |
-| `service.rs` | Business logic, interface implementations | Must implement Clone |
-| `functions.rs` | Static dispatch functions, HTTP adapters | Core v7 improvement |
-| `mod.rs` | Public API re-exports | Standard module pattern |
-
-### 3. Implementation Templates
-
-#### types.rs Template
 ```rust
 use serde::{Deserialize, Serialize};
 use chrono::{DateTime, Utc};
+use crate::proto::backend as proto;
 
 /// Request type
-#[derive(Debug, Deserialize)]
-pub struct LoginRequest {
-    pub username: String,
-    pub password: String,
+#[derive(Debug, Deserialize, Clone)]
+pub struct {Domain}Request {
+    pub field1: String,
+    pub field2: Option<i32>,
+    pub field3: Vec<String>,
 }
 
 /// Response type
-#[derive(Debug, Serialize)]
-pub struct LoginResponse {
-    pub token: String,
-    pub user_id: String,
-    pub expires_at: DateTime<Utc>,
+#[derive(Debug, Serialize, Clone)]
+pub struct {Domain}Response {
+    pub id: String,
+    pub result: String,
+    pub timestamp: DateTime<Utc>,
+}
+
+/// Entity type
+#[derive(Debug, Serialize, Deserialize, Clone)]
+pub struct {Domain}Entity {
+    pub id: String,
+    pub name: String,
+    pub value: i32,
+    pub created_at: DateTime<Utc>,
+    pub updated_at: DateTime<Utc>,
 }
 
 /// Business error type
 #[derive(Debug, thiserror::Error)]
-pub enum AuthError {
-    #[error("Invalid credentials")]
-    InvalidCredentials,
-    #[error("User not found")]
-    UserNotFound,
+pub enum {Domain}Error {
+    #[error("Invalid request parameter: {0}")]
+    InvalidRequest(String),
+    #[error("Resource not found: {0}")]
+    NotFound(String),
+    #[error("Database error: {0}")]
+    Database(String),
+    #[error("Cache error: {0}")]
+    Cache(String),
 }
+
+/// Proto conversion implementation
+impl {Domain}Request {
+    pub fn from_proto(proto_req: proto::{Domain}Request) -> Result<Self, {Domain}Error> {
+        Ok(Self {
+            field1: proto_req.field1,
+            field2: if proto_req.field2 == 0 { None } else { Some(proto_req.field2) },
+            field3: proto_req.field3,
+        })
+    }
+}
+
+impl {Domain}Response {
+    pub fn to_proto(self) -> proto::{Domain}Response {
+        proto::{Domain}Response {
+            success: true,
+            error: String::new(),
+            // Other field mappings...
+        }
+    }
+}
+
+/// Type aliases
+pub type {Domain}Result<T> = Result<T, {Domain}Error>;
 ```
 
-#### interfaces.rs Template
+### 🔌 B. interfaces.rs - Interface Definitions
+
 ```rust
 use crate::core::result::Result;
-use super::types::{LoginRequest, LoginResponse};
+use super::types::{Domain}Request, {Domain}Response, {Domain}Entity, {Domain}Result};
 
-/// Service interface (must support Clone)
-pub trait AuthService: Send + Sync + Clone {
-    async fn authenticate(&self, req: LoginRequest) -> Result<LoginResponse>;
-    async fn validate_token(&self, token: &str) -> Result<bool>;
+/// Main business service interface (must support Clone)
+pub trait {Domain}Service: Send + Sync + Clone {
+    async fn process(&self, req: {Domain}Request) -> {Domain}Result<{Domain}Response>;
+    async fn find_by_id(&self, id: &str) -> {Domain}Result<Option<{Domain}Entity>>;
+    async fn create(&self, entity: {Domain}Entity) -> {Domain}Result<{Domain}Entity>;
+    async fn update(&self, id: &str, entity: {Domain}Entity) -> {Domain}Result<{Domain}Entity>;
+    async fn delete(&self, id: &str) -> {Domain}Result<bool>;
 }
 
 /// Repository interface (must support Clone)
-pub trait UserRepository: Send + Sync + Clone {
-    async fn find_by_username(&self, username: &str) -> Result<Option<User>>;
+pub trait {Domain}Repository: Send + Sync + Clone {
+    async fn find_by_id(&self, id: &str) -> {Domain}Result<Option<{Domain}Entity>>;
+    async fn find_all(&self, limit: Option<u32>, offset: Option<u32>) -> {Domain}Result<Vec<{Domain}Entity>>;
+    async fn create(&self, entity: &{Domain}Entity) -> {Domain}Result<{Domain}Entity>;
+    async fn update(&self, entity: &{Domain}Entity) -> {Domain}Result<{Domain}Entity>;
+    async fn delete(&self, id: &str) -> {Domain}Result<bool>;
 }
 ```
 
-#### service.rs Template
+### ⚙️ C. service.rs - Business Logic Implementation
+
 ```rust
-use super::interfaces::{AuthService, UserRepository};
-use super::types::{LoginRequest, LoginResponse};
-
-/// Service implementation (must implement Clone)
-#[derive(Clone)]
-pub struct JwtAuthService {
-    user_repo: MemoryUserRepository,
-    // Other dependencies...
-}
-
-impl JwtAuthService {
-    pub fn new(user_repo: MemoryUserRepository) -> Self {
-        Self { user_repo }
-    }
-}
-
-impl AuthService for JwtAuthService {
-    async fn authenticate(&self, req: LoginRequest) -> Result<LoginResponse> {
-        // Business logic implementation...
-    }
-}
-```
-
-#### functions.rs Template
-```rust
-use crate::core::result::Result;
-use crate::infra::http::HttpResponse;
+use crate::infra::{cache::MemoryCache, db::Database};
 use crate::infra::di::inject;
-use super::interfaces::AuthService;
-use super::types::{LoginRequest, LoginResponse};
+use super::interfaces::{Domain}Service, {Domain}Repository};
+use super::types::{Domain}Request, {Domain}Response, {Domain}Entity, {Domain}Error, {Domain}Result};
 
-/// v7 Core business function - static dispatch
-pub async fn login<A>(
-    auth_service: A,
-    req: LoginRequest
-) -> Result<LoginResponse>
+/// Business service implementation (must implement Clone)
+#[derive(Clone)]
+pub struct {Implementation}{Domain}Service<D, C>
 where
-    A: AuthService,
+    D: Database + Clone,
+    C: MemoryCache + Clone,
 {
-    auth_service.authenticate(req).await
+    db: D,
+    cache: C,
 }
 
-/// HTTP adapter function
-pub async fn http_login(req: LoginRequest) -> HttpResponse<LoginResponse> {
-    let auth_service = inject::<JwtAuthService>();
-    match login(auth_service, req).await {
-        Ok(response) => HttpResponse::success(response),
-        Err(e) => HttpResponse::from_error(e),
+impl<D, C> {Implementation}{Domain}Service<D, C>
+where
+    D: Database + Clone,
+    C: MemoryCache + Clone,
+{
+    pub fn new(db: D, cache: C) -> Self {
+        Self { db, cache }
+    }
+}
+
+impl<D, C> {Domain}Service for {Implementation}{Domain}Service<D, C>
+where
+    D: Database + Clone,
+    C: MemoryCache + Clone,
+{
+    async fn process(&self, req: {Domain}Request) -> {Domain}Result<{Domain}Response> {
+        // Business logic implementation...
+        // 1. Validate input
+        // 2. Query data (cache first, then database)
+        // 3. Execute business logic
+        // 4. Update cache
+        // 5. Return result
+        
+        Ok({Domain}Response {
+            // Response fields...
+        })
+    }
+    
+    async fn find_by_id(&self, id: &str) -> {Domain}Result<Option<{Domain}Entity>> {
+        // Try to get from cache first
+        let cache_key = format!("{domain}:{}", id);
+        if let Ok(Some(entity)) = self.cache.get_json::<{Domain}Entity>(&cache_key).await {
+            return Ok(Some(entity));
+        }
+        
+        // Query from database
+        let result = self.db.query_opt(
+            "SELECT * FROM {domain}_table WHERE id = ?",
+            &[id]
+        ).await.map_err(|e| {Domain}Error::Database(e.to_string()))?;
+        
+        if let Some(entity) = result {
+            // Update cache
+            let _ = self.cache.set_json(&cache_key, &entity, Some(3600)).await;
+            Ok(Some(entity))
+        } else {
+            Ok(None)
+        }
     }
 }
 ```
 
----
-
-## 🚫 Anti-Patterns (Strictly Prohibited)
-
-### 1. ❌ Reimplementing Infrastructure
+### 🚀 D. functions.rs - Static Dispatch Functions (gRPC Version)
 
 ```rust
-// ❌ Wrong: Reimplementing cache
-pub struct MyCache {
-    data: HashMap<String, String>,
+use crate::core::error::AppError;
+use crate::core::result::Result;
+use crate::infra::di::inject;
+use super::interfaces::{Domain}Service;
+use super::types::{Domain}Request, {Domain}Response, {Domain}Entity};
+
+/// v7 business function - using generics for static dispatch
+/// 
+/// Function path: {domain}.process
+/// gRPC method: v7.backend.BackendService/{Domain}Process
+/// Performance characteristics: Compile-time monomorphization, zero runtime overhead
+/// 
+/// # Parameters
+/// - `service`: Business service instance (generic, supports static dispatch)
+/// - `req`: Request data
+/// 
+/// # Returns
+/// Returns response data on success, AppError on failure
+pub async fn process<S>(
+    service: S,
+    req: {Domain}Request
+) -> Result<{Domain}Response>
+where
+    S: {Domain}Service,
+{
+    service.process(req).await
+        .map_err(|e| match e {
+            {Domain}Error::InvalidRequest(msg) => AppError::bad_request(&msg),
+            {Domain}Error::NotFound(msg) => AppError::not_found(&msg),
+            {Domain}Error::Database(msg) => AppError::internal(&format!("Database error: {}", msg)),
+            {Domain}Error::Cache(msg) => AppError::internal(&format!("Cache error: {}", msg)),
+        })
 }
 
-// ✅ Correct: Use existing infrastructure
-use crate::infra::cache::MemoryCache;
-let cache = inject::<MemoryCache>();
-```
-
-### 2. ❌ Dynamic Dispatch
-
-```rust
-// ❌ Wrong: Using trait objects
-pub async fn process(service: Box<dyn Service>) -> Result<Data> {}
-
-// ✅ Correct: Static dispatch
-pub async fn process<S>(service: S) -> Result<Data>
-where S: Service + Clone {}
-```
-
-### 3. ❌ Missing Clone Trait
-
-```rust
-// ❌ Wrong: Service doesn't support Clone
-pub struct AuthService {
-    db: Arc<Database>,
+/// v7 query function - static dispatch
+/// 
+/// Function path: {domain}.find_by_id
+/// gRPC method: v7.backend.BackendService/Get{Domain}
+pub async fn find_by_id<S>(
+    service: S,
+    id: String
+) -> Result<{Domain}Entity>
+where
+    S: {Domain}Service,
+{
+    service.find_by_id(&id).await
+        .map_err(|e| AppError::internal(&format!("Query error: {}", e)))?
+        .ok_or_else(|| AppError::not_found("Resource does not exist"))
 }
 
-// ✅ Correct: Service supports Clone
-#[derive(Clone)]
-pub struct AuthService {
-    db: MemoryDatabase, // Clone-able type
+/// v7 create function - static dispatch
+/// 
+/// Function path: {domain}.create
+/// gRPC method: v7.backend.BackendService/Create{Domain}
+pub async fn create<S>(
+    service: S,
+    entity: {Domain}Entity
+) -> Result<{Domain}Entity>
+where
+    S: {Domain}Service,
+{
+    service.create(entity).await
+        .map_err(|e| AppError::internal(&format!("Creation failed: {}", e)))
+}
+
+/// v7 update function - static dispatch
+/// 
+/// Function path: {domain}.update
+/// gRPC method: v7.backend.BackendService/Update{Domain}
+pub async fn update<S>(
+    service: S,
+    id: String,
+    entity: {Domain}Entity
+) -> Result<{Domain}Entity>
+where
+    S: {Domain}Service,
+{
+    service.update(&id, entity).await
+        .map_err(|e| AppError::internal(&format!("Update failed: {}", e)))
+}
+
+/// v7 delete function - static dispatch
+/// 
+/// Function path: {domain}.delete
+/// gRPC method: v7.backend.BackendService/Delete{Domain}
+pub async fn delete<S>(
+    service: S,
+    id: String
+) -> Result<bool>
+where
+    S: {Domain}Service,
+{
+    service.delete(&id).await
+        .map_err(|e| AppError::internal(&format!("Deletion failed: {}", e)))
 }
 ```
 
-### 4. ❌ Complex Macro Usage
+---
+
+## 🔧 Dependency Injection and gRPC Service Configuration
+
+### A. Service Registration (in main.rs)
 
 ```rust
-// ❌ Wrong: Complex procedural macros
-#[expose(path = "auth.login", method = "POST")]
-pub async fn login() {}
+use crate::infra::{
+    di::register,
+    db::DatabaseFactory,
+    cache::CacheFactory,
+    config::Config,
+    monitoring::{ConsoleLogger, MemoryMetricsCollector, LogLevel},
+};
+use crate::grpc_layer::GrpcBackendService;
 
-// ✅ Correct: Simple generic functions
-pub async fn login<A>(auth_service: A) -> Result<Response>
-where A: AuthService {}
+/// v7 service registration - complete component registration
+fn setup_services() {
+    // 1. Infrastructure registration
+    let config = Config::from_env();
+    register(config);
+    
+    let db = DatabaseFactory::create_from_config().unwrap();
+    register(db.clone());
+    
+    let cache = CacheFactory::create_from_config().unwrap();
+    register(cache.clone());
+    
+    let logger = ConsoleLogger::new(LogLevel::Info);
+    register(logger);
+    
+    let metrics = MemoryMetricsCollector::new();
+    register(metrics);
+    
+    // 2. Business service registration (using concrete types supporting Clone)
+    let domain_service = {Implementation}{Domain}Service::new(db, cache);
+    register(domain_service);
+    
+    tracing::info!("✅ v7 service registration completed - static dispatch mode");
+}
+```
+
+### B. gRPC Service Configuration
+
+```rust
+use tonic::transport::Server;
+use crate::proto::backend::backend_service_server::BackendServiceServer;
+use crate::grpc_layer::GrpcBackendService;
+
+async fn start_grpc_server() -> Result<(), Box<dyn std::error::Error>> {
+    let addr = "0.0.0.0:50053".parse()?;
+    let grpc_service = GrpcBackendService::new();
+    
+    tracing::info!("🚀 gRPC server starting: {}", addr);
+    
+    Server::builder()
+        .add_service(BackendServiceServer::new(grpc_service))
+        .serve(addr)
+        .await?;
+    
+    Ok(())
+}
 ```
 
 ---
 
-## 🔧 Development Workflow
+## 🧪 Testing Specifications
 
-### 1. Analysis Phase
-- Identify business domain and required data types
-- Check existing infrastructure components that can be reused
-- Design trait interfaces and generic constraints
+### A. Unit Test Template
 
-### 2. Implementation Phase
-- Implement data types (types.rs)
-- Define trait interfaces (interfaces.rs)
-- Implement business services (service.rs)
-- Create static dispatch functions (functions.rs)
-
-### 3. Integration Phase
-- Register services in DI container
-- Configure HTTP routes
-- Add middleware and error handling
-
-### 4. Testing Phase
-- Write unit tests for business logic
-- Write integration tests for HTTP endpoints
-- Performance testing and optimization
-
----
-
-## 📊 Performance Optimization Guidelines
-
-### 1. Compile-Time Optimization
-- Use generic parameters to enable monomorphization
-- Leverage compiler inlining optimizations
-- Minimize runtime type checking
-
-### 2. Memory Management
-- Use Clone trait instead of Arc when possible
-- Avoid unnecessary heap allocations
-- Reuse existing infrastructure components
-
-### 3. Caching Strategy
-- Cache frequently accessed data
-- Use appropriate TTL values
-- Implement cache warming strategies
-
----
-
-## 🧪 Testing Standards
-
-### 1. Unit Testing
 ```rust
 #[cfg(test)]
 mod tests {
     use super::*;
-
+    use crate::infra::{db::MockDatabase, cache::MockCache};
+    
     #[tokio::test]
-    async fn test_login_success() {
-        let auth_service = MockAuthService::new();
-        let req = LoginRequest { /* ... */ };
+    async fn test_{domain}_process_success() {
+        // Prepare test data
+        let mock_db = MockDatabase::new();
+        let mock_cache = MockCache::new();
+        let service = {Implementation}{Domain}Service::new(mock_db, mock_cache);
         
-        let result = login(auth_service, req).await;
+        let req = {Domain}Request {
+            // Test data...
+        };
+        
+        // Execute test
+        let result = process(service, req).await;
+        
+        // Verify result
         assert!(result.is_ok());
+        let response = result.unwrap();
+        // Specific assertions...
+    }
+    
+    #[tokio::test]
+    async fn test_{domain}_find_by_id_from_cache() {
+        // Test cache hit scenario
+    }
+    
+    #[tokio::test]
+    async fn test_{domain}_find_by_id_from_database() {
+        // Test database query scenario
     }
 }
 ```
 
-### 2. Integration Testing
+### B. gRPC Integration Testing
+
 ```rust
-#[tokio::test]
-async fn test_http_login() {
-    let app = create_test_app().await;
-    let response = app
-        .post("/api/auth/login")
-        .json(&login_request)
-        .send()
-        .await;
+#[cfg(test)]
+mod grpc_tests {
+    use super::*;
+    use tonic::Request;
+    use crate::proto::backend::{Domain}Request as Proto{Domain}Request;
     
-    assert_eq!(response.status(), 200);
+    #[tokio::test]
+    async fn test_grpc_{domain}_process() {
+        // Set up gRPC client
+        let mut client = create_test_grpc_client().await;
+        
+        let request = Request::new(Proto{Domain}Request {
+            // Test data...
+        });
+        
+        // Execute gRPC call
+        let response = client.{domain}_process(request).await;
+        
+        // Verify response
+        assert!(response.is_ok());
+        let inner = response.unwrap().into_inner();
+        assert!(inner.success);
+    }
 }
 ```
 
 ---
 
-## 📚 Documentation Requirements
+## ✅ Development Completion Self-Check List
 
-### 1. Function Documentation
-```rust
-/// User login API
-/// 
-/// Function path: auth.login
-/// HTTP route: POST /api/auth/login
-/// Performance: Compile-time monomorphization, zero runtime overhead
-pub async fn login<A>(auth_service: A, req: LoginRequest) -> Result<LoginResponse>
-where A: AuthService {}
-```
+After development completion, please perform the following checks:
 
-### 2. Error Handling Documentation
-- Document all possible error types
-- Provide error context and recovery suggestions
-- Include trace ID for debugging
+**Architecture Compliance**:
+- [ ] **Function-first**: Is the design based on functions as basic units?
+- [ ] **Static dispatch**: Are generic parameters used instead of trait objects?
+- [ ] **Infrastructure reuse**: Are existing cache, config, db, monitoring components used?
+- [ ] **Type safety**: Are all dependencies verified at compile time?
+- [ ] **Clone support**: Do all service types implement Clone trait?
+- [ ] **Error handling**: Is the unified error handling system integrated?
 
----
+**gRPC Integration**:
+- [ ] **Proto conversion**: Are complete Proto type conversions implemented?
+- [ ] **gRPC service**: Are service methods correctly implemented in grpc_layer?
+- [ ] **Error mapping**: Are business errors correctly mapped to gRPC Status?
+- [ ] **Type safety**: Are strong type constraints maintained?
 
-## 🎯 Success Criteria
+**Documentation and Testing**:
+- [ ] **Complete documentation**: Are necessary function and type documentations added?
+- [ ] **Test coverage**: Are unit tests and gRPC integration tests included?
 
-When implementing any functionality, ensure:
-
-1. **✅ Architecture Compliance**: Follows v7 static dispatch + generic patterns
-2. **✅ Infrastructure Reuse**: Uses existing cache, config, db, monitoring components
-3. **✅ Type Safety**: All types are checked at compile time
-4. **✅ Performance**: Zero runtime overhead through static dispatch
-5. **✅ Testability**: Easy to unit test and mock
-6. **✅ Maintainability**: Clear code structure and documentation
-7. **✅ Error Handling**: Integrated with unified error system
+If issues are found, please re-optimize the implementation.
 
 ---
 
-**Remember**: v7 architecture achieves the perfect balance of performance, maintainability, and developer experience through static dispatch + generics. Always prioritize compile-time optimization and infrastructure reuse!
+## 🎯 Development Workflow
 
+### New Slice Development Steps:
 
+1. **📋 Analyze Requirements**: Determine business domain and data flow, map to gRPC methods
+2. **📦 Define Types**: Define request/response/entity/error types in `types.rs`, including Proto conversion
+3. **🔌 Design Interfaces**: Define service traits in `interfaces.rs`
+4. **⚙️ Implement Services**: Implement business logic in `service.rs`, reuse infrastructure
+5. **🚀 Create Functions**: Define static dispatch functions in `functions.rs`
+6. **🔧 Register Services**: Register to DI container in `main.rs`
+7. **🌐 Implement gRPC**: Implement corresponding gRPC methods in `grpc_layer/mod.rs`
+8. **🧪 Write Tests**: Create complete test cases, including gRPC integration tests
 
+### Code Quality Assurance:
+
+- Strictly follow the above template structure
+- Maintain type safety and zero-overhead principles
+- Implement complete error handling chains
+- Add appropriate documentation comments
+- Ensure all types implement necessary traits
+- Verify gRPC integration correctness
+
+---
+
+This specification is based on the actual backend/ design, ensuring consistency, performance, and maintainability of v7 architecture in pure gRPC mode, enabling Claude to accurately understand and implement high-quality code that meets architectural requirements.

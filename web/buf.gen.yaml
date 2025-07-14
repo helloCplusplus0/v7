@@ -1,0 +1,32 @@
+# Buf代码生成配置 - v7项目现代化proto管理
+# 使用ConnectRPC + Buf CLI实现完备的grpc-web通信
+
+version: v2
+
+# 输入源配置
+inputs:
+  - directory: ../backend/proto
+
+# 生成插件配置
+plugins:
+  # 生成TypeScript消息类型
+  - local: ./node_modules/@bufbuild/protoc-gen-es/bin/protoc-gen-es
+    out: shared/api/generated
+    opt:
+      - target=ts
+      - import_extension=none
+      - ts_nocheck=false
+
+  # 生成ConnectRPC客户端
+  - local: ./node_modules/@connectrpc/protoc-gen-connect-es/bin/protoc-gen-connect-es
+    out: shared/api/generated
+    opt:
+      - target=ts
+      - import_extension=none
+
+# 输出配置
+managed:
+  enabled: true
+  
+# 清理选项
+clean: true 

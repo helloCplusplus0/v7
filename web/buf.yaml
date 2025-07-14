@@ -1,0 +1,34 @@
+# Buf配置文件 - v7项目proto管理
+# 定义proto文件的质量标准和breaking change检测
+
+version: v2
+
+# 模块配置
+modules:
+  - path: ../backend/proto
+    name: buf.build/v7/backend
+
+# Lint配置 - 确保proto文件质量
+lint:
+  use:
+    - DEFAULT
+    - COMMENTS
+    - FILE_LAYOUT
+  except:
+    - ENUM_ZERO_VALUE_SUFFIX
+    - RPC_REQUEST_RESPONSE_UNIQUE
+  
+# Breaking change检测配置
+breaking:
+  use:
+    - FILE
+    - PACKAGE
+    - WIRE_JSON
+  except:
+    - EXTENSION_NO_DELETE
+    - FIELD_SAME_DEFAULT
+
+# 依赖管理配置
+deps:
+  - buf.build/googleapis/googleapis
+  - buf.build/grpc-ecosystem/grpc-gateway 

@@ -8,18 +8,12 @@ pub mod interfaces;
 pub mod service;
 pub mod types;
 
-// 重新导出公共API
+// 重新导出公共API - 纯gRPC模式
 pub use functions::{
-    // 静态分发核心函数
+    // 静态分发核心函数（用于gRPC服务）
     create_item,
     delete_item,
     get_item,
-    // HTTP适配器函数
-    http_create_item,
-    http_delete_item,
-    http_get_item,
-    http_list_items,
-    http_update_item,
     list_items,
     update_item,
 };

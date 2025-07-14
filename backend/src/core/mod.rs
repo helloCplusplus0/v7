@@ -6,10 +6,8 @@ pub mod error;
 pub mod performance_analysis;
 pub mod registry;
 pub mod result;
-pub mod runtime_api_collector;
 
 // 重导出常用类型
 pub use error::{AppError, ErrorCode};
 pub use registry::{global_registry, FunctionMetadata, FunctionRegistry};
 pub use result::Result;
-pub use runtime_api_collector::{runtime_collector, RuntimeApiCollector};

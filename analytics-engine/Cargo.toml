@@ -1,0 +1,65 @@
+[package]
+name = "analytics-engine"
+version = "0.1.0"
+edition = "2021"
+
+[lib]
+name = "analytics_engine"
+crate-type = ["cdylib", "rlib"]
+
+[[bin]]
+name = "analytics-server"
+path = "src/main.rs"
+
+[dependencies]
+# Core dependencies
+tokio = { version = "1.35", features = ["full"] }
+anyhow = "1.0"
+serde = { version = "1.0", features = ["derive"] }
+serde_json = "1.0"
+tracing = "0.1"
+tracing-subscriber = "0.3"
+
+# gRPC and networking
+tonic = "0.10"
+prost = "0.12"
+tower = "0.4"
+hyper = "0.14"
+
+# Python integration (optional)
+pyo3 = { version = "0.20", features = ["auto-initialize"], optional = true }
+pythonize = { version = "0.20", optional = true }
+
+# Data processing (Rust-first)
+polars = { version = "0.35", features = ["lazy", "temporal", "strings"] }
+ndarray = "0.15"
+linfa = "0.7"
+linfa-clustering = "0.7"
+smartcore = "0.3"
+
+# Configuration and environment
+config = "0.13"
+dotenvy = "0.15"
+
+# Async utilities
+async-stream = "0.3"
+tokio-stream = "0.1"
+futures-util = "0.3"
+
+[build-dependencies]
+tonic-build = "0.10"
+pyo3-build-config = { version = "0.20", optional = true }
+
+[features]
+default = ["python-bridge"]
+python-bridge = ["pyo3", "pythonize", "pyo3-build-config"]
+rust-only = []
+
+[dev-dependencies]
+tempfile = "3.8"
+criterion = "0.5"
+
+# 基准测试配置
+# [[bench]]
+# name = "analysis_benchmarks"
+# harness = false 

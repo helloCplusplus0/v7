@@ -107,10 +107,17 @@ describe('Shared Infrastructure Integration', () => {
 
       // 捕获控制台错误
       const originalConsoleError = console.error;
-      console.error = (error: any) => {
-        if (error.includes && error.includes('Event handler error')) {
-          errors.push(new Error('Handler error'));
+      console.error = (message: any, ...args: any[]) => {
+        // 检查错误消息
+        const fullMessage = typeof message === 'string' ? message : String(message);
+        if (fullMessage.includes('监听器执行失败') && args.length > 0) {
+          const error = args[0];
+          if (error instanceof Error && error.message === 'Handler error') {
+            errors.push(error);
+          }
         }
+        // 调用原始的console.error以保持日志输出
+        originalConsoleError.call(console, message, ...args);
       };
 
       // 发布事件

@@ -11,8 +11,8 @@ export const developmentConfig = {
   },
 
   api: {
-    baseUrl: import.meta.env.VITE_API_BASE_URL || 'http://192.168.31.84:3000/api',
-    timeout: parseInt(import.meta.env['VITE_API_TIMEOUT'] || '15000') // 开发环境更长的超时时间
+    baseUrl: import.meta.env.VITE_API_BASE_URL || 'http://192.168.31.84:8080/api',
+    timeout: parseInt(import.meta.env['VITE_API_TIMEOUT'] || '30000') // 开发环境更长的超时时间
   } as Partial<ApiConfig>,
 
   server: {
@@ -25,7 +25,7 @@ export const developmentConfig = {
     },
     proxy: {
       enabled: true,
-      target: import.meta.env['VITE_API_BASE_URL'] || 'http://192.168.31.84:3000',
+      target: import.meta.env['VITE_API_BASE_URL'] || 'http://192.168.31.84:8080',
       changeOrigin: true,
       secure: false
     },

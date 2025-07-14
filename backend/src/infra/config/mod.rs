@@ -147,12 +147,21 @@ impl Config {
         let environment = Environment::from_env();
         let config = Self::new(environment);
 
-        // 加载.env文件（如果存在）
-        if let Ok(env_path) = std::env::var("ENV_FILE") {
+        // 🔧 修复：加载环境配置文件的优先级
+        // 1. 优先尝试加载 dev.env 文件（开发环境）
+        if std::path::Path::new("dev.env").exists() {
+            if let Err(e) = dotenv::from_filename("dev.env") {
+                eprintln!("Warning: Failed to load dev.env file: {e}");
+            }
+        }
+        // 2. 尝试加载环境变量指定的文件
+        else if let Ok(env_path) = std::env::var("ENV_FILE") {
             if let Err(e) = dotenv::from_path(&env_path) {
                 eprintln!("Warning: Failed to load .env file: {e}");
             }
-        } else if environment.is_development() {
+        }
+        // 3. 回退到标准 .env 文件
+        else if environment.is_development() {
             let _ = dotenv::dotenv(); // 尝试加载.env文件
         }
 

@@ -7,6 +7,7 @@
 
 pub mod auth;
 pub mod mvp_crud;
+pub mod mvp_stat;
 pub mod registry;
 // 切片模块将在实现时添加
 // pub mod user;

@@ -5,8 +5,8 @@
 RUST_LOG = { value = "debug", condition = "cfg(debug_assertions)" }
 RUST_BACKTRACE = { value = "1", condition = "cfg(debug_assertions)" }
 
-# 测试环境变量
-DATABASE_URL = { value = "sqlite::memory:", condition = "cfg(test)" }
+# 🔧 修复：测试环境变量只在测试时生效
+# DATABASE_URL = { value = "sqlite::memory:", condition = "cfg(test)" }
 
 [target.'cfg(test)']
 # 测试特定配置
@@ -18,6 +18,10 @@ rustflags = [
     # 启用增量编译
     "-C", "incremental=true",
 ]
+
+# 🔧 修复：测试环境变量配置
+[target.'cfg(test)'.env]
+DATABASE_URL = "sqlite::memory:"
 
 [target.'cfg(debug_assertions)']
 # 开发模式配置
@@ -48,8 +52,8 @@ fmt-check = "fmt --all -- --check"
 audit = "audit"
 
 # 覆盖率和基准测试
-coverage = "tarpaulin --out Html --output-dir target/coverage"
-bench = "bench --all-features"
+cov = "tarpaulin --out html"
+bench = "bench"
 
 # 发布相关
 release-check = ["fmt-check", "lint", "test-all", "audit"]

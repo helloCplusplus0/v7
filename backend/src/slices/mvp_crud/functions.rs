@@ -1,18 +1,13 @@
 use super::interfaces::CrudService;
-use super::service::{SqliteCrudService, SqliteItemRepository};
 use super::types::{
-    CreateItemRequest, CreateItemResponse, CrudError, CrudResult, DeleteItemResponse,
+    CreateItemRequest, CreateItemResponse, CrudResult, DeleteItemResponse,
     GetItemResponse, ListItemsQuery, ListItemsResponse, UpdateItemRequest, UpdateItemResponse,
 };
-use crate::infra::cache::MemoryCache;
-use crate::infra::db::sqlite::SqliteDatabase;
-use crate::infra::di::inject;
-use crate::infra::http::HttpResponse;
 
 /// ⭐ v7核心业务函数：创建项目（静态分发）
 ///
 /// 函数路径: `mvp_crud.create_item`
-/// HTTP路由: POST /api/items
+/// gRPC方法: v7.backend.BackendService/CreateItem
 /// 性能特性: 编译时单态化，零运行时开销
 ///
 /// # Errors
@@ -32,7 +27,7 @@ where
 /// ⭐ v7核心业务函数：获取项目（静态分发）
 ///
 /// 函数路径: `mvp_crud.get_item`
-/// HTTP路由: GET /api/items/{id}
+/// gRPC方法: v7.backend.BackendService/GetItem
 /// 性能特性: 编译时单态化，零运行时开销
 ///
 /// # Errors
@@ -51,7 +46,7 @@ where
 /// ⭐ v7核心业务函数：更新项目（静态分发）
 ///
 /// 函数路径: `mvp_crud.update_item`
-/// HTTP路由: PUT /api/items/{id}
+/// gRPC方法: v7.backend.BackendService/UpdateItem
 /// 性能特性: 编译时单态化，零运行时开销
 ///
 /// # Errors
@@ -76,7 +71,7 @@ where
 /// ⭐ v7核心业务函数：删除项目（静态分发）
 ///
 /// 函数路径: `mvp_crud.delete_item`
-/// HTTP路由: DELETE /api/items/{id}
+/// gRPC方法: v7.backend.BackendService/DeleteItem
 /// 性能特性: 编译时单态化，零运行时开销
 ///
 /// # Errors
@@ -95,7 +90,7 @@ where
 /// ⭐ v7核心业务函数：列出项目（静态分发）
 ///
 /// 函数路径: `mvp_crud.list_items`
-/// HTTP路由: GET /api/items
+/// gRPC方法: v7.backend.BackendService/ListItems
 /// 性能特性: 编译时单态化，零运行时开销
 ///
 /// # Errors
@@ -111,92 +106,18 @@ where
     service.list_items(query).await
 }
 
-// ===== HTTP适配器函数 =====
-
-type ConcreteCrudService = SqliteCrudService<SqliteItemRepository<SqliteDatabase>, MemoryCache>;
-
-/// HTTP适配器：创建项目
-pub async fn http_create_item(req: CreateItemRequest) -> HttpResponse<CreateItemResponse> {
-    let service = inject::<ConcreteCrudService>();
-    match create_item(service, req).await {
-        Ok(response) => HttpResponse::success(response),
-        Err(e) => {
-            let error_msg = format!("创建项目失败: {e}");
-            HttpResponse::error(axum::http::StatusCode::BAD_REQUEST, &error_msg)
-        }
-    }
-}
-
-/// HTTP适配器：获取项目
-pub async fn http_get_item(id: String) -> HttpResponse<GetItemResponse> {
-    let service = inject::<ConcreteCrudService>();
-    match get_item(service, id).await {
-        Ok(response) => HttpResponse::success(response),
-        Err(e) => {
-            let status_code = match e {
-                CrudError::ItemNotFound { .. } => axum::http::StatusCode::NOT_FOUND,
-                _ => axum::http::StatusCode::INTERNAL_SERVER_ERROR,
-            };
-            let error_msg = format!("获取项目失败: {e}");
-            HttpResponse::error(status_code, &error_msg)
-        }
-    }
-}
-
-/// HTTP适配器：更新项目
-pub async fn http_update_item(
-    id: String,
-    req: UpdateItemRequest,
-) -> HttpResponse<UpdateItemResponse> {
-    let service = inject::<ConcreteCrudService>();
-    match update_item(service, id, req).await {
-        Ok(response) => HttpResponse::success(response),
-        Err(e) => {
-            let status_code = match e {
-                CrudError::ItemNotFound { .. } => axum::http::StatusCode::NOT_FOUND,
-                CrudError::ItemNameExists { .. } => axum::http::StatusCode::CONFLICT,
-                CrudError::Validation { .. } => axum::http::StatusCode::BAD_REQUEST,
-                _ => axum::http::StatusCode::INTERNAL_SERVER_ERROR,
-            };
-            let error_msg = format!("更新项目失败: {e}");
-            HttpResponse::error(status_code, &error_msg)
-        }
-    }
-}
-
-/// HTTP适配器：删除项目
-pub async fn http_delete_item(id: String) -> HttpResponse<DeleteItemResponse> {
-    let service = inject::<ConcreteCrudService>();
-    match delete_item(service, id).await {
-        Ok(response) => HttpResponse::success(response),
-        Err(e) => {
-            let status_code = match e {
-                CrudError::ItemNotFound { .. } => axum::http::StatusCode::NOT_FOUND,
-                _ => axum::http::StatusCode::INTERNAL_SERVER_ERROR,
-            };
-            let error_msg = format!("删除项目失败: {e}");
-            HttpResponse::error(status_code, &error_msg)
-        }
-    }
-}
-
-/// HTTP适配器：列出项目
-pub async fn http_list_items(query: ListItemsQuery) -> HttpResponse<ListItemsResponse> {
-    let service = inject::<ConcreteCrudService>();
-    match list_items(service, query).await {
-        Ok(response) => HttpResponse::success(response),
-        Err(e) => {
-            let error_msg = format!("获取项目列表失败: {e}");
-            HttpResponse::error(axum::http::StatusCode::INTERNAL_SERVER_ERROR, &error_msg)
-        }
-    }
-}
+// HTTP适配器函数已移除 - 转移至纯gRPC模式
 
 #[cfg(test)]
 mod tests {
     use super::*;
     use crate::infra::cache::MemoryCache;
     use crate::infra::db::sqlite::SqliteDatabase;
+    use crate::slices::mvp_crud::service::{SqliteCrudService, SqliteItemRepository};
+    use crate::slices::mvp_crud::types::CrudError;
+
+    /// 测试用的具体服务类型
+    type ConcreteCrudService = SqliteCrudService<SqliteItemRepository<SqliteDatabase>, MemoryCache>;
 
     /// 创建测试用的服务实例 - 包含完整的数据库初始化
     async fn create_test_service() -> ConcreteCrudService {

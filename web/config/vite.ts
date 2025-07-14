@@ -21,7 +21,7 @@ export function createViteConfig(options: ViteConfigOptions): UserConfig {
     port: parseInt(env['VITE_DEV_SERVER_PORT'] || '5173'),
     hmrPort: parseInt(env['VITE_HMR_PORT'] || '5173'),
     hmrHost: env['VITE_HMR_HOST'] || env['VITE_DEV_SERVER_HOST'] || '192.168.31.84', // 修复：使用具体IP
-    apiBaseUrl: env['VITE_API_BASE_URL'] || (isDevelopment ? 'http://192.168.31.84:3000' : '/api')
+    apiBaseUrl: env['VITE_API_BASE_URL'] || (isDevelopment ? 'http://192.168.31.84:8080/api' : '/api')
   };
   
   return {

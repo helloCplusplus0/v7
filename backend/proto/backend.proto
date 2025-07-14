@@ -1,0 +1,290 @@
+syntax = "proto3";
+
+package v7.backend;
+
+// Backend gRPC 服务定义
+service BackendService {
+  // 健康检查
+  rpc HealthCheck(HealthRequest) returns (HealthResponse);
+  
+  // ===== 认证服务 =====
+  // 用户登录
+  rpc Login(LoginRequest) returns (LoginResponse);
+  
+  // 验证令牌
+  rpc ValidateToken(ValidateTokenRequest) returns (ValidateTokenResponse);
+  
+  // 用户登出
+  rpc Logout(LogoutRequest) returns (LogoutResponse);
+  
+  // ===== CRUD服务 =====
+  // 创建项目
+  rpc CreateItem(CreateItemRequest) returns (CreateItemResponse);
+  
+  // 获取项目
+  rpc GetItem(GetItemRequest) returns (GetItemResponse);
+  
+  // 更新项目
+  rpc UpdateItem(UpdateItemRequest) returns (UpdateItemResponse);
+  
+  // 删除项目
+  rpc DeleteItem(DeleteItemRequest) returns (DeleteItemResponse);
+  
+  // 列出项目
+  rpc ListItems(ListItemsRequest) returns (ListItemsResponse);
+  
+  // ===== 分析服务 =====
+  // 分析引擎代理调用
+  rpc AnalyticsProxy(AnalyticsProxyRequest) returns (AnalyticsProxyResponse);
+  
+  // MVP统计分析服务
+  rpc Statistics(StatisticsRequest) returns (StatisticsResponse);
+}
+
+// 健康检查消息
+message HealthRequest {
+  string service = 1;
+}
+
+message HealthResponse {
+  string status = 1;
+  string version = 2;
+  int64 timestamp = 3;
+}
+
+// ===== 认证相关消息 =====
+message LoginRequest {
+  string username = 1;
+  string password = 2;
+}
+
+message LoginResponse {
+  bool success = 1;
+  string error = 2;
+  optional UserSession session = 3;
+}
+
+message UserSession {
+  string token = 1;
+  string user_id = 2;
+  string username = 3;
+  int64 expires_at = 4;
+}
+
+message ValidateTokenRequest {
+  string token = 1;
+}
+
+message ValidateTokenResponse {
+  bool success = 1;
+  string error = 2;
+  optional UserSession session = 3;
+}
+
+message LogoutRequest {
+  string token = 1;
+}
+
+message LogoutResponse {
+  bool success = 1;
+  string error = 2;
+}
+
+// ===== CRUD相关消息 =====
+message CreateItemRequest {
+  string name = 1;
+  optional string description = 2;
+  int32 value = 3;
+}
+
+message CreateItemResponse {
+  bool success = 1;
+  string error = 2;
+  optional Item item = 3;
+}
+
+message GetItemRequest {
+  string id = 1;
+}
+
+message GetItemResponse {
+  bool success = 1;
+  string error = 2;
+  optional Item item = 3;
+}
+
+message UpdateItemRequest {
+  string id = 1;
+  optional string name = 2;
+  optional string description = 3;
+  optional int32 value = 4;
+}
+
+message UpdateItemResponse {
+  bool success = 1;
+  string error = 2;
+  optional Item item = 3;
+}
+
+message DeleteItemRequest {
+  string id = 1;
+}
+
+message DeleteItemResponse {
+  bool success = 1;
+  string error = 2;
+}
+
+message ListItemsRequest {
+  optional int32 limit = 1;
+  optional int32 offset = 2;
+  optional string search = 3;
+}
+
+message ListItemsResponse {
+  bool success = 1;
+  string error = 2;
+  repeated Item items = 3;
+  int32 total = 4;
+}
+
+message Item {
+  string id = 1;
+  string name = 2;
+  optional string description = 3;
+  int32 value = 4;
+  string created_at = 5;
+  string updated_at = 6;
+}
+
+// 分析引擎代理消息
+message AnalyticsProxyRequest {
+  string algorithm = 1;
+  repeated double data = 2;
+  map<string, string> parameters = 3;
+}
+
+message AnalyticsProxyResponse {
+  string result = 1;        // JSON格式结果
+  bool success = 2;
+  string error = 3;
+  map<string, double> metrics = 4;
+}
+
+// MVP统计分析消息
+message StatisticsRequest {
+  oneof request_type {
+    GenerateRandomDataRequest generate_data = 1;
+    CalculateStatisticsRequest calculate_stats = 2;
+    ComprehensiveAnalysisRequest comprehensive = 3;
+  }
+}
+
+message StatisticsResponse {
+  oneof response_type {
+    GenerateRandomDataResponse data_response = 1;
+    CalculateStatisticsResponse stats_response = 2;
+    ComprehensiveAnalysisResponse comprehensive_response = 3;
+  }
+  bool success = 4;
+  string error = 5;
+}
+
+message GenerateRandomDataRequest {
+  optional uint32 count = 1;
+  optional uint64 seed = 2;
+  optional double min_value = 3;
+  optional double max_value = 4;
+  optional string distribution = 5;
+}
+
+message GenerateRandomDataResponse {
+  repeated double data = 1;
+  uint32 count = 2;
+  uint64 seed = 3;
+  string generated_at = 4;
+  PerformanceInfo performance = 5;
+}
+
+message CalculateStatisticsRequest {
+  repeated double data = 1;
+  repeated string statistics = 2;
+  repeated double percentiles = 3;
+  optional bool use_analytics_engine = 4;
+  optional bool prefer_rust = 5;
+}
+
+message CalculateStatisticsResponse {
+  StatisticsResult results = 1;
+  PerformanceInfo performance = 2;
+  string implementation = 3;
+}
+
+message ComprehensiveAnalysisRequest {
+  GenerateRandomDataRequest data_config = 1;
+  CalculateStatisticsRequest stats_config = 2;
+}
+
+message ComprehensiveAnalysisResponse {
+  DataSummary data_summary = 1;
+  StatisticsResult statistics = 2;
+  PerformanceInfo performance = 3;
+  string analyzed_at = 4;
+}
+
+message DataSummary {
+  uint32 count = 1;
+  uint64 seed = 2;
+  DataRange range = 3;
+  string distribution = 4;
+  repeated double preview = 5;
+}
+
+message DataRange {
+  double min = 1;
+  double max = 2;
+}
+
+message StatisticsResult {
+  BasicStatistics basic = 1;
+  DistributionStatistics distribution = 2;
+  PercentileInfo percentiles = 3;
+  ShapeStatistics shape = 4;
+}
+
+message BasicStatistics {
+  uint32 count = 1;
+  double sum = 2;
+  double mean = 3;
+  double min = 4;
+  double max = 5;
+  double range = 6;
+}
+
+message DistributionStatistics {
+  double median = 1;
+  repeated double mode = 2;
+  double variance = 3;
+  double std_dev = 4;
+  double iqr = 5;
+}
+
+message PercentileInfo {
+  double q1 = 1;
+  double q2 = 2;
+  double q3 = 3;
+  map<string, double> custom = 4;
+}
+
+message ShapeStatistics {
+  double skewness = 1;
+  double kurtosis = 2;
+  string distribution_shape = 3;
+}
+
+message PerformanceInfo {
+  uint64 execution_time_ms = 1;
+  optional uint64 memory_usage_bytes = 2;
+  string implementation = 3;
+  map<string, string> metrics = 4;
+} 

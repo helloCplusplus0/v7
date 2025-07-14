@@ -1,0 +1,653 @@
+/**
+ * 🎯 Web v7 移动端优化通用样式
+ * 
+ * 目标：
+ * 1. 提供一致的移动端体验
+ * 2. 支持所有切片的移动端适配
+ * 3. 优化触摸交互和可访问性
+ * 4. 适配各种屏幕尺寸和设备
+ */
+
+/* ===== 移动端基础优化 ===== */
+
+/* 防止文本意外缩放 */
+.mobile-optimized {
+  -webkit-text-size-adjust: 100%;
+  -moz-text-size-adjust: 100%;
+  -ms-text-size-adjust: 100%;
+  text-size-adjust: 100%;
+}
+
+/* 触摸友好的交互元素 */
+.touch-friendly {
+  min-height: 44px;
+  min-width: 44px;
+  touch-action: manipulation;
+  -webkit-tap-highlight-color: rgba(0, 0, 0, 0.1);
+}
+
+/* 移动端按钮优化 */
+.mobile-button {
+  padding: 12px 16px;
+  font-size: 16px;
+  border-radius: 8px;
+  border: none;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  touch-action: manipulation;
+  -webkit-tap-highlight-color: rgba(0, 0, 0, 0.1);
+  min-height: 44px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+}
+
+.mobile-button:active {
+  transform: scale(0.98);
+}
+
+/* 移动端输入框优化 */
+.mobile-input {
+  padding: 12px 16px;
+  font-size: 16px; /* 防止iOS缩放 */
+  border-radius: 8px;
+  border: 1px solid #e1e8ed;
+  background: #ffffff;
+  transition: all 0.2s ease;
+  min-height: 44px;
+  width: 100%;
+  box-sizing: border-box;
+}
+
+.mobile-input:focus {
+  outline: none;
+  border-color: #0088cc;
+  box-shadow: 0 0 0 3px rgba(0, 136, 204, 0.1);
+}
+
+/* 移动端卡片优化 */
+.mobile-card {
+  background: #ffffff;
+  border-radius: 12px;
+  padding: 16px;
+  border: 1px solid #e1e8ed;
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+  transition: all 0.2s ease;
+  touch-action: manipulation;
+  -webkit-tap-highlight-color: rgba(0, 0, 0, 0.05);
+}
+
+.mobile-card:active {
+  transform: translateY(1px);
+}
+
+/* 移动端列表优化 */
+.mobile-list {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+}
+
+.mobile-list-item {
+  padding: 16px;
+  border-bottom: 1px solid #f1f3f4;
+  transition: background-color 0.2s ease;
+  touch-action: manipulation;
+  -webkit-tap-highlight-color: rgba(0, 0, 0, 0.05);
+  min-height: 44px;
+  display: flex;
+  align-items: center;
+}
+
+.mobile-list-item:last-child {
+  border-bottom: none;
+}
+
+.mobile-list-item:active {
+  background-color: #f8f9fa;
+}
+
+/* ===== 响应式文本处理 ===== */
+
+/* 单行文本溢出 */
+.text-truncate {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* 多行文本溢出 */
+.text-clamp-2 {
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+
+.text-clamp-3 {
+  display: -webkit-box;
+  -webkit-line-clamp: 3;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+
+/* 响应式文本大小 */
+.text-responsive {
+  font-size: clamp(14px, 4vw, 18px);
+  line-height: 1.5;
+}
+
+/* ===== 移动端布局工具 ===== */
+
+/* 移动端容器 */
+.mobile-container {
+  max-width: 100%;
+  margin: 0 auto;
+  padding: 0 16px;
+}
+
+/* 移动端网格 */
+.mobile-grid {
+  display: grid;
+  gap: 16px;
+  grid-template-columns: 1fr;
+}
+
+/* 移动端弹性布局 */
+.mobile-flex {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.mobile-flex-row {
+  display: flex;
+  flex-direction: row;
+  gap: 12px;
+  align-items: center;
+}
+
+/* 移动端间距 */
+.mobile-spacing-sm {
+  padding: 8px;
+}
+
+.mobile-spacing-md {
+  padding: 16px;
+}
+
+.mobile-spacing-lg {
+  padding: 24px;
+}
+
+/* ===== 移动端表单优化 ===== */
+
+.mobile-form {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.mobile-form-group {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.mobile-form-label {
+  font-size: 14px;
+  font-weight: 500;
+  color: #374151;
+}
+
+.mobile-form-input {
+  padding: 12px 16px;
+  font-size: 16px;
+  border-radius: 8px;
+  border: 1px solid #d1d5db;
+  background: #ffffff;
+  transition: all 0.2s ease;
+  min-height: 44px;
+}
+
+.mobile-form-input:focus {
+  outline: none;
+  border-color: #3b82f6;
+  box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.1);
+}
+
+.mobile-form-textarea {
+  padding: 12px 16px;
+  font-size: 16px;
+  border-radius: 8px;
+  border: 1px solid #d1d5db;
+  background: #ffffff;
+  transition: all 0.2s ease;
+  min-height: 100px;
+  resize: vertical;
+}
+
+.mobile-form-textarea:focus {
+  outline: none;
+  border-color: #3b82f6;
+  box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.1);
+}
+
+/* ===== 移动端模态框优化 ===== */
+
+.mobile-modal-overlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: rgba(0, 0, 0, 0.5);
+  display: flex;
+  align-items: flex-end;
+  justify-content: center;
+  z-index: 1000;
+  padding: 0;
+}
+
+.mobile-modal {
+  background: #ffffff;
+  border-radius: 16px 16px 0 0;
+  width: 100%;
+  max-height: 90vh;
+  overflow-y: auto;
+  animation: slideUp 0.3s ease-out;
+}
+
+@keyframes slideUp {
+  from {
+    transform: translateY(100%);
+  }
+  to {
+    transform: translateY(0);
+  }
+}
+
+.mobile-modal-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 16px 20px;
+  border-bottom: 1px solid #e5e7eb;
+  position: sticky;
+  top: 0;
+  background: #ffffff;
+  z-index: 1;
+}
+
+.mobile-modal-title {
+  font-size: 18px;
+  font-weight: 600;
+  color: #111827;
+  margin: 0;
+}
+
+.mobile-modal-close {
+  background: none;
+  border: none;
+  font-size: 24px;
+  color: #6b7280;
+  cursor: pointer;
+  padding: 4px;
+  border-radius: 4px;
+  transition: all 0.2s ease;
+  min-width: 32px;
+  min-height: 32px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.mobile-modal-close:hover {
+  background: #f3f4f6;
+}
+
+.mobile-modal-content {
+  padding: 20px;
+}
+
+/* ===== 移动端导航优化 ===== */
+
+.mobile-nav {
+  display: flex;
+  background: #ffffff;
+  border-top: 1px solid #e5e7eb;
+  padding: 8px 0;
+  padding-bottom: calc(8px + env(safe-area-inset-bottom));
+}
+
+.mobile-nav-item {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+  padding: 8px;
+  text-decoration: none;
+  color: #6b7280;
+  transition: all 0.2s ease;
+  touch-action: manipulation;
+  -webkit-tap-highlight-color: rgba(0, 0, 0, 0.1);
+  min-height: 44px;
+  justify-content: center;
+}
+
+.mobile-nav-item:active {
+  background: #f3f4f6;
+}
+
+.mobile-nav-item.active {
+  color: #3b82f6;
+}
+
+.mobile-nav-icon {
+  font-size: 20px;
+}
+
+.mobile-nav-label {
+  font-size: 12px;
+  font-weight: 500;
+}
+
+/* ===== 移动端状态指示器 ===== */
+
+.mobile-loading {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  padding: 40px;
+  color: #6b7280;
+}
+
+.mobile-loading-spinner {
+  width: 32px;
+  height: 32px;
+  border: 3px solid #e5e7eb;
+  border-top: 3px solid #3b82f6;
+  border-radius: 50%;
+  animation: spin 1s linear infinite;
+  margin-bottom: 16px;
+}
+
+@keyframes spin {
+  0% { transform: rotate(0deg); }
+  100% { transform: rotate(360deg); }
+}
+
+.mobile-empty-state {
+  text-align: center;
+  padding: 40px 20px;
+  color: #6b7280;
+}
+
+.mobile-empty-icon {
+  font-size: 48px;
+  margin-bottom: 16px;
+  opacity: 0.5;
+}
+
+.mobile-empty-title {
+  font-size: 18px;
+  font-weight: 600;
+  color: #111827;
+  margin-bottom: 8px;
+}
+
+.mobile-empty-description {
+  font-size: 14px;
+  line-height: 1.5;
+}
+
+/* ===== 移动端通知和提示 ===== */
+
+.mobile-toast {
+  position: fixed;
+  top: 20px;
+  left: 16px;
+  right: 16px;
+  background: #111827;
+  color: #ffffff;
+  padding: 16px;
+  border-radius: 8px;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
+  z-index: 1001;
+  animation: slideDown 0.3s ease-out;
+}
+
+@keyframes slideDown {
+  from {
+    transform: translateY(-100%);
+    opacity: 0;
+  }
+  to {
+    transform: translateY(0);
+    opacity: 1;
+  }
+}
+
+.mobile-toast.success {
+  background: #10b981;
+}
+
+.mobile-toast.error {
+  background: #ef4444;
+}
+
+.mobile-toast.warning {
+  background: #f59e0b;
+}
+
+/* ===== 设备特定优化 ===== */
+
+/* 大屏幕手机（平板模式） */
+@media (min-width: 640px) {
+  .mobile-container {
+    padding: 0 24px;
+  }
+  
+  .mobile-grid {
+    grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+  }
+  
+  .mobile-modal-overlay {
+    align-items: center;
+    padding: 20px;
+  }
+  
+  .mobile-modal {
+    border-radius: 16px;
+    max-width: 500px;
+    max-height: 80vh;
+  }
+}
+
+/* 平板设备 */
+@media (min-width: 768px) {
+  .mobile-grid {
+    grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+    gap: 20px;
+  }
+  
+  .mobile-flex {
+    flex-direction: row;
+    flex-wrap: wrap;
+  }
+  
+  .mobile-nav {
+    justify-content: center;
+    gap: 40px;
+  }
+  
+  .mobile-nav-item {
+    flex: none;
+    min-width: 80px;
+  }
+}
+
+/* 桌面设备 */
+@media (min-width: 1024px) {
+  .mobile-container {
+    max-width: 1200px;
+    padding: 0 32px;
+  }
+  
+  .mobile-grid {
+    grid-template-columns: repeat(auto-fill, minmax(320px, 1fr));
+    gap: 24px;
+  }
+}
+
+/* 横屏优化 */
+@media (orientation: landscape) and (max-height: 600px) {
+  .mobile-modal {
+    max-height: 95vh;
+  }
+  
+  .mobile-spacing-lg {
+    padding: 16px;
+  }
+  
+  .mobile-nav {
+    padding: 4px 0;
+    padding-bottom: calc(4px + env(safe-area-inset-bottom));
+  }
+}
+
+/* 高分辨率屏幕 */
+@media (-webkit-min-device-pixel-ratio: 2), (min-resolution: 192dpi) {
+  .mobile-card {
+    border-width: 0.5px;
+  }
+  
+  .mobile-input {
+    border-width: 0.5px;
+  }
+  
+  .mobile-form-input {
+    border-width: 0.5px;
+  }
+}
+
+/* 深色模式支持 */
+@media (prefers-color-scheme: dark) {
+  .mobile-card {
+    background: #1f2937;
+    border-color: #374151;
+    color: #f9fafb;
+  }
+  
+  .mobile-input {
+    background: #374151;
+    border-color: #4b5563;
+    color: #f9fafb;
+  }
+  
+  .mobile-form-input {
+    background: #374151;
+    border-color: #4b5563;
+    color: #f9fafb;
+  }
+  
+  .mobile-form-textarea {
+    background: #374151;
+    border-color: #4b5563;
+    color: #f9fafb;
+  }
+  
+  .mobile-modal {
+    background: #1f2937;
+    color: #f9fafb;
+  }
+  
+  .mobile-modal-header {
+    background: #1f2937;
+    border-bottom-color: #374151;
+  }
+  
+  .mobile-nav {
+    background: #1f2937;
+    border-top-color: #374151;
+  }
+}
+
+/* 减少动画偏好 */
+@media (prefers-reduced-motion: reduce) {
+  * {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
+  
+  .mobile-button:active {
+    transform: none;
+  }
+  
+  .mobile-card:active {
+    transform: none;
+  }
+}
+
+/* ===== 工具类 ===== */
+
+/* 隐藏元素 */
+.mobile-hidden {
+  display: none;
+}
+
+/* 仅移动端显示 */
+.mobile-only {
+  display: block;
+}
+
+@media (min-width: 768px) {
+  .mobile-only {
+    display: none;
+  }
+}
+
+/* 仅桌面端显示 */
+.desktop-only {
+  display: none;
+}
+
+@media (min-width: 768px) {
+  .desktop-only {
+    display: block;
+  }
+}
+
+/* 安全区域填充 */
+.safe-area-top {
+  padding-top: env(safe-area-inset-top);
+}
+
+.safe-area-bottom {
+  padding-bottom: env(safe-area-inset-bottom);
+}
+
+.safe-area-left {
+  padding-left: env(safe-area-inset-left);
+}
+
+.safe-area-right {
+  padding-right: env(safe-area-inset-right);
+}
+
+/* 防止选择 */
+.no-select {
+  -webkit-user-select: none;
+  -moz-user-select: none;
+  -ms-user-select: none;
+  user-select: none;
+}
+
+/* 强制硬件加速 */
+.hardware-accelerated {
+  transform: translateZ(0);
+  -webkit-transform: translateZ(0);
+} 
