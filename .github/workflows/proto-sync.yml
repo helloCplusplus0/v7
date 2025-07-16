@@ -5,12 +5,14 @@ name: Proto Sync and Validation
 
 on:
   push:
+    branches: [ main ]  # 仅main分支推送触发
     paths:
       - 'backend/proto/**'
       - 'web/buf.yaml'
       - 'web/buf.gen.yaml'
       - '.github/workflows/proto-sync.yml'
   pull_request:
+    branches: [ main ]  # 仅main分支的PR触发
     paths:
       - 'backend/proto/**'
       - 'web/buf.yaml'

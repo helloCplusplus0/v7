@@ -1,63 +1,272 @@
-# fmod-project 项目的gitignore文件
+# ===============================================
+# 🚀 V7 项目 - 全栈.gitignore配置
+# 涵盖：Rust + Node.js + Flutter + Python + DevOps
+# ===============================================
 
-# 编译输出
-target/
-dist/
-build/
-web/dist/
-web/build/
+# ===== 🦀 Rust 相关 =====
+# 编译产物
+**/target/
+**/*.rs.bk
+Cargo.lock.bak
 
+# ===== 🌐 Node.js / Web 相关 =====
 # 依赖
 node_modules/
+.pnp/
+.pnp.js
 web/node_modules/
+*/node_modules/
 
-# 日志
-**/logs/
-**/*.log
-npm-debug.log*
-yarn-debug.log*
-yarn-error.log*
-pnpm-debug.log*
-
-# 环境变量
-.env
-.env.local
-.env.development.local
-.env.test.local
-.env.production.local
+# 构建输出
+dist/
+build/
+out/
+web/dist/
+web/build/
+.next/
+.nuxt/
 
 # 缓存
-.fmod/cache/
+.cache/
+.parcel-cache/
+.vite/
 web/.vite/
-web/.cache/
 .eslintcache
+.npm/
+.yarn-integrity
 
-# 测试覆盖率
-coverage/
-web/coverage/
+# ===== 📱 Flutter / Dart 相关 =====
+# 构建产物
+flutterend/build/
+**/ios/Flutter/.last_build_id
+**/android/app/debug/
+**/android/app/profile/
+**/android/app/release/
 
-# 操作系统
-.DS_Store
-.DS_Store?
-._*
-Thumbs.db
+# Flutter工具文件
+.dart_tool/
+.flutter-plugins
+.flutter-plugins-dependencies
+.pub-cache/
+.pub/
 
-# 编辑器
+# Flutter生成文件
+**/doc/api/
+app.*.symbols
+app.*.map.json
+
+# ===== 🐍 Python 相关 =====
+# 编译产物
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+*.egg-info/
+*.whl
+build/
+dist/
+
+# Virtual environments
+venv/
+env/
+.venv/
+.env/
+
+# PyO3 / Rust-Python构建
+analytics-engine/target/
+analytics-engine/python/__pycache__/
+
+# ===== 🐳 容器 / DevOps 相关 =====
+# Docker / Podman
+.dockerignore.bak
+*.dockerfile.bak
+Dockerfile.backup
+
+# Compose文件备份
+*compose*.yml.bak
+*compose*.yaml.bak
+
+# 运行时数据
+data/
+logs/
+*/logs/
+**/*.log
+
+# ===== 🔧 开发工具相关 =====
+# IDE
 .vscode/
 .idea/
 *.swp
 *.swo
+*~
+.cursor/
+*/cursor/
+**/.cursor/
 
-# TypeScript
-*.tsbuildinfo
+# 编辑器临时文件
+*.sublime-project
+*.sublime-workspace
+.atom/
 
+# ===== 💾 数据库相关 =====
 # 数据库文件
 *.db
 *.db-wal
 *.db-shm
-backend/data/*.db
-backend/data/*.db-wal
-backend/data/*.db-shm
-dev.db*
 *.sqlite
 *.sqlite3
+backend/data/*.db*
+dev.db*
+
+# ===== 🌍 环境变量 =====
+# 环境配置
+.env
+.env.local
+.env.*.local
+.env.development.local
+.env.test.local
+.env.production.local
+dev.env
+
+# ===== 📊 测试 / 覆盖率 =====
+# 测试覆盖率
+coverage/
+web/coverage/
+flutterend/coverage/
+*.lcov
+.nyc_output
+.vitest/
+
+# 测试输出
+test_results.json
+flutterend/test_results.json
+
+# ===== 📝 日志 / 调试 =====
+# 日志文件
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+lerna-debug.log*
+
+# 调试信息
+.buildlog/
+.history/
+
+# ===== 🔒 安全相关 =====
+# 密钥文件
+*.pem
+*.key
+*.crt
+secrets/
+.secrets/
+
+# ===== 💻 操作系统 =====
+# macOS
+.DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+
+# Windows
+Thumbs.db
+ehthumbs.db
+Desktop.ini
+
+# Linux
+*~
+
+# ===== 📦 包管理器缓存 =====
+# NPM / Yarn
+.npm/
+.yarn-integrity
+yarn-error.log
+.pnpm-debug.log*
+
+# ===== 🔨 构建工具 =====
+# TypeScript
+*.tsbuildinfo
+
+# 构建缓存
+.tmp/
+.temp/
+*.tmp
+*.temp
+
+# ===== 📱 平台特定（Flutter） =====
+# iOS
+**/ios/Pods/
+**/ios/.symlinks/
+**/ios/Flutter/Flutter.framework
+**/ios/Flutter/Flutter.podspec
+
+# Android
+**/android/.gradle/
+**/android/captures/
+**/android/gradlew
+**/android/gradlew.bat
+**/android/local.properties
+**/android/**/GeneratedPluginRegistrant.java
+
+# ===== 🚀 部署相关 =====
+# 部署配置备份
+*.backup
+*.bak
+
+# 临时部署文件
+deploy/
+deployment/
+
+# ===== 📊 性能分析 =====
+# Rust性能分析
+target/criterion/
+target/coverage/
+
+# Flutter性能
+**/performance_overlay/
+
+# ===== 🔄 同步相关 =====
+# Git相关
+.git/hooks/
+.git/info/
+.git/logs/
+.git/objects/
+.git/refs/
+
+# 同步冲突文件
+*.orig
+*.rej
+
+# ===== 📱 移动端特定 =====
+# Flutter
+.metadata
+*.iml
+.buildlog/
+.svn/
+migrate_working_dir/
+
+# ===== 📚 文档生成 =====
+# 生成的文档
+docs/api/
+**/generated/
+
+# ===== 🎯 项目特定 =====
+# v7项目特定忽略
+scripts/tmp/
+analytics-engine/python/build/
+backend/examples/generated/
+
+# Proto生成文件（如需要忽略）
+# web/shared/api/generated/
+
+# ===== 💡 本地开发 =====
+# 本地配置
+.local/
+local.conf
+dev.conf
+
+# 开发者个人配置
+.dev/
+.user/

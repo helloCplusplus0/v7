@@ -1,12 +1,12 @@
 [build-system]
-requires = ["maturin>=1.4,<2.0"]
+requires = ["maturin>=1.0,<2.0"]
 build-backend = "maturin"
 
 [project]
-name = "analytics-engine"
+name = "analytics_engine"
 version = "0.1.0"
-description = "High-performance analytics engine with Rust+Python hybrid implementation"
-requires-python = ">=3.9"
+description = "Rust+Python混合分析引擎，PyO3动态链接最佳实践"
+requires-python = ">=3.12"
 dependencies = [
     "numpy>=1.24.0",
     "pandas>=2.0.0",
@@ -35,7 +35,7 @@ dev = [
 ]
 
 [tool.maturin]
-features = ["pyo3/extension-module"]
+bindings = "pyo3"
 python-source = "python"
 module-name = "analytics_engine._rust"
 

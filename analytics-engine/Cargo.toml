@@ -27,7 +27,7 @@ tower = "0.4"
 hyper = "0.14"
 
 # Python integration (optional)
-pyo3 = { version = "0.20", features = ["auto-initialize"], optional = true }
+pyo3 = { version = "0.20", features = ["extension-module", "abi3-py312"], optional = true }
 pythonize = { version = "0.20", optional = true }
 
 # Data processing (Rust-first)
@@ -51,7 +51,7 @@ tonic-build = "0.10"
 pyo3-build-config = { version = "0.20", optional = true }
 
 [features]
-default = ["python-bridge"]
+default = ["rust-only"]  
 python-bridge = ["pyo3", "pythonize", "pyo3-build-config"]
 rust-only = []
 

@@ -1,8 +1,21 @@
 # 🚀 V7 Backend Podman 优化镜像
 # 多阶段构建 - 专为轻量化和极致性能设计
 
+# 📐 构建参数（参数化管理）
+ARG RUST_VERSION=1.87
+ARG ALPINE_VERSION=3.19
+ARG TARGET_ARCH=x86_64-unknown-linux-musl
+ARG BACKEND_PORT=3000
+ARG GRPC_PORT=50053
+ARG APP_USER=appuser
+ARG APP_UID=1002
+ARG APP_GID=1002
+
 # ===== 🏗️ 构建阶段 =====
-FROM rust:1.87-alpine AS builder
+FROM rust:${RUST_VERSION}-alpine AS builder
+
+# 📐 重新声明构建参数（多阶段构建需要）
+ARG TARGET_ARCH=x86_64-unknown-linux-musl
 
 # 📦 安装构建依赖
 RUN apk add --no-cache \
@@ -13,27 +26,35 @@ RUN apk add --no-cache \
     sqlite-dev \
     sqlite-static \
     build-base \
-    curl \
+    protobuf-dev \
+    bash \
+    coreutils \
     && rm -rf /var/cache/apk/*
 
-# 🔧 设置构建环境变量
-ENV RUSTFLAGS="-C target-feature=+crt-static -C link-arg=-static-pie"
+# 🛠️ 修复/tmp权限和空间问题
+RUN mkdir -p /tmp && chmod 1777 /tmp
+ENV TMPDIR=/tmp
+
+# 🔧 设置构建环境变量（增强优化）
+ENV RUSTFLAGS="-C target-feature=+crt-static -C link-arg=-static-pie -C target-cpu=native"
 ENV PKG_CONFIG_ALLOW_CROSS=1
 ENV OPENSSL_STATIC=1
 ENV OPENSSL_DIR=/usr
+ENV CARGO_NET_GIT_FETCH_WITH_CLI=true
 
 # 📁 创建工作目录
 WORKDIR /build
 
 # 📦 复制依赖文件（利用Docker层缓存）
 COPY Cargo.toml Cargo.lock build.rs ./
+COPY proto/ proto/
 
 # 🔨 预构建依赖（缓存优化）- 正确处理混合项目
 RUN mkdir -p src && \
     echo "fn main() {}" > src/main.rs && \
     echo "// Dummy lib for dependency caching" > src/lib.rs && \
-    cargo build --release --target x86_64-unknown-linux-musl && \
-    rm -rf src
+    cargo build --release --target ${TARGET_ARCH} && \
+    rm -rf src target/${TARGET_ARCH}/release/deps/fmod*
 
 # 📁 复制源代码
 COPY src/ src/
@@ -41,69 +62,83 @@ COPY src/ src/
 # 🏗️ 构建应用程序 - 启用所有优化
 RUN cargo build \
     --release \
-    --target x86_64-unknown-linux-musl \
+    --target ${TARGET_ARCH} \
     --config "profile.release.lto=true" \
     --config "profile.release.codegen-units=1" \
     --config "profile.release.panic='abort'" \
     --config "profile.release.strip=true" \
-    && cp target/x86_64-unknown-linux-musl/release/fmod_slice /build/v7-backend
+    --config "profile.release.opt-level=3" \
+    && cp target/${TARGET_ARCH}/release/fmod_slice /build/v7-backend
 
 # 🔍 验证二进制文件
 RUN file /build/v7-backend && \
-    ldd /build/v7-backend || echo "Static binary - no dynamic dependencies" && \
-    ls -la /build/v7-backend
+    ldd /build/v7-backend || echo "✅ Static binary - no dynamic dependencies" && \
+    ls -lh /build/v7-backend
 
 # ===== 🏃 运行阶段 =====
-FROM alpine:3.19 AS runtime
+FROM alpine:${ALPINE_VERSION} AS runtime
 
-# 📦 安装运行时依赖（最小化）
+# 📦 安装运行时依赖（最小化，移除curl）
 RUN apk add --no-cache \
     ca-certificates \
-    curl \
     tzdata \
     && rm -rf /var/cache/apk/*
 
-# 👤 创建非特权用户 - 修复用户ID与部署环境一致
-RUN addgroup -g 1002 -S appgroup && \
-    adduser -u 1002 -S appuser -G appgroup
+# 👤 创建非特权用户（参数化用户配置）
+RUN addgroup -g ${APP_GID} -S appgroup && \
+    adduser -u ${APP_UID} -S ${APP_USER} -G appgroup
 
-# 📁 创建应用目录
-RUN mkdir -p /app/{data,logs,config} && \
-    chown -R appuser:appgroup /app
+# 📁 创建应用目录（增强权限管理）
+RUN mkdir -p /app/{data,logs,config,tmp} && \
+    mkdir -p /tmp/app-runtime && \
+    chown -R ${APP_USER}:appgroup /app /tmp/app-runtime && \
+    chmod 755 /app && \
+    chmod 750 /app/data /app/logs /app/config && \
+    chmod 755 /app/tmp
 
 # 📋 设置工作目录
 WORKDIR /app
 
 # 📦 从构建阶段复制二进制文件
-COPY --from=builder --chown=appuser:appgroup /build/v7-backend /app/backend
+COPY --from=builder --chown=${APP_USER}:appgroup /build/v7-backend /app/backend
 
-# 🔧 设置执行权限
-RUN chmod +x /app/backend
+# 🔧 设置执行权限（安全优化）
+RUN chmod 755 /app/backend
 
-# 🌍 设置环境变量
-ENV RUST_LOG=info
-ENV DATABASE_URL=sqlite:/app/data/prod.db
-ENV PORT=3000
-ENV RUST_BACKTRACE=1
+# 🌍 设置环境变量（参数化端口配置）
+ENV RUST_LOG=info \
+    DATABASE_URL=sqlite:/app/data/prod.db \
+    HTTP_PORT=${BACKEND_PORT} \
+    GRPC_PORT=${GRPC_PORT} \
+    RUST_BACKTRACE=1 \
+    MALLOC_ARENA_MAX=2 \
+    MALLOC_TRIM_THRESHOLD_=131072
 
-# 🔌 暴露端口
-EXPOSE 3000
+# 🔌 暴露端口（参数化）
+EXPOSE ${BACKEND_PORT} ${GRPC_PORT}
+
+# 📁 数据卷（只读文件系统支持）
+VOLUME ["/app/data", "/app/logs", "/tmp/app-runtime"]
 
 # 👤 切换到非特权用户
-USER appuser:appgroup
+USER ${APP_USER}:appgroup
 
-# 🏥 健康检查
-HEALTHCHECK --interval=30s --timeout=10s --start-period=5s --retries=3 \
-    CMD curl -f http://localhost:3000/health || exit 1
+# 🏥 健康检查（移除外部依赖，使用内建健康检查）
+HEALTHCHECK --interval=30s --timeout=10s --start-period=10s --retries=3 \
+    CMD /app/backend --health-check 2>/dev/null || exit 1
 
-# 🏷️ 镜像标签
-LABEL maintainer="hellocplusplus0" \
+# 🏷️ 镜像标签（增强元数据）
+LABEL maintainer="v7-team" \
       app="v7-backend" \
-      version="latest" \
-      architecture="podman" \
-      description="V7 Backend - Rust + FMOD v7 Architecture" \
-      rust.version="1.87" \
-      build.optimization="lto+strip+static"
+      version="v7-optimized" \
+      architecture="rust+fmod-v7" \
+      description="V7 Backend - Rust + FMOD v7 Architecture with gRPC support" \
+      rust.version="${RUST_VERSION}" \
+      optimization="lto+strip+static+no-external-deps" \
+      security="non-root+minimal-deps+readonly-fs" \
+      performance="extreme+static-binary" \
+      ports.http="${BACKEND_PORT}" \
+      ports.grpc="${GRPC_PORT}"
 
 # 🚀 启动命令
 ENTRYPOINT ["/app/backend"]

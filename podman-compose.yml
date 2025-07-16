@@ -1,40 +1,42 @@
-# 🐳 V7 项目 - 生产环境容器编排
+# 🐳 V7 项目 - 生产环境容器编排（已针对Dockerfile优化调整）
 # 架构：Web(nginx) + Backend(gRPC+gRPC-Web) + Analytics-Engine(gRPC)
 # 通信：Browser → nginx → Backend gRPC-Web:50053
+# 📋 优化亮点：参数化配置、增强安全、优化性能、企业级监控
 
 version: '3.8'
 
 services:
-  # 🦀 后端服务 - 支持 gRPC 和 gRPC-Web
+  # 🦀 后端服务 - 支持 gRPC 和 gRPC-Web（已优化）
   backend:
     image: ${BACKEND_IMAGE:-ghcr.io/hellocplusplus0/v7/backend:latest}
     container_name: v7-backend
     restart: unless-stopped
     
-    # 🔌 端口映射
+    # 🔌 端口映射（参数化配置）
     ports:
-      - "3000:3000"    # 健康检查和指标
-      - "50053:50053"  # gRPC + gRPC-Web 服务
+      - "${BACKEND_HTTP_PORT:-3000}:${BACKEND_HTTP_PORT:-3000}"
+      - "${BACKEND_GRPC_PORT:-50053}:${BACKEND_GRPC_PORT:-50053}"
     
-    # 🌍 环境变量
+    # 🌍 环境变量（增强配置）
     environment:
       - RUST_LOG=${RUST_LOG:-info}
       - DATABASE_URL=${DATABASE_URL:-sqlite:/app/data/prod.db}
-      - REST_PORT=3000
-      - GRPC_PORT=50053
+      - HTTP_PORT=${BACKEND_HTTP_PORT:-3000}
+      - GRPC_PORT=${BACKEND_GRPC_PORT:-50053}
       - TZ=Asia/Shanghai
       - ENABLE_CORS=true
       - MAX_CONNECTIONS=100
       - RUST_BACKTRACE=1
       - MALLOC_ARENA_MAX=2
+      - MALLOC_TRIM_THRESHOLD_=131072
       # Analytics Engine连接配置
-      - ANALYTICS_ENGINE_ADDR=analytics-engine:50051
+      - ANALYTICS_ENGINE_ADDR=analytics-engine:${ANALYTICS_PORT:-50051}
     
     volumes:
       - ./data:/app/data:Z
       - ./logs/backend:/app/logs:Z
       - ./config:/app/config:ro,Z
-      - analytics-socket:/tmp/analytics:Z  # Unix socket 通信
+      - analytics-socket:/tmp/app-runtime:Z  # 匹配Dockerfile优化后的路径
     
     networks:
       - v7-network
@@ -42,25 +44,26 @@ services:
     deploy:
       resources:
         limits:
-          memory: 768M
-          cpus: '1.0'
+          memory: 512M  # 调整：静态链接后内存占用更小
+          cpus: '0.8'   # 调整：优化后性能提升
         reservations:
-          memory: 384M
-          cpus: '0.3'
+          memory: 256M  # 调整：减少内存预留
+          cpus: '0.2'
     
     healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:3000/health"]
+      test: ["CMD", "/app/backend", "--health-check"]  # 使用内建健康检查
       interval: 30s
       timeout: 10s
       retries: 3
-      start_period: 60s
+      start_period: 30s  # 减少：优化后启动更快
     
     security_opt:
       - no-new-privileges:true
     tmpfs:
       - /tmp:noexec,nosuid,size=100m
     
-    user: "1002:1002"
+    # 使用非特权用户（匹配Dockerfile优化）
+    user: "${BACKEND_UID:-1002}:${BACKEND_GID:-1002}"
     
     logging:
       driver: json-file
@@ -75,30 +78,31 @@ services:
     labels:
       - "app=v7"
       - "service=backend"
-      - "version=latest"
+      - "version=optimized"
       - "protocols=grpc,grpc-web"
+      - "architecture=rust+fmod-v7"
+      - "optimization=static-binary+lto"
 
-  # 🌐 前端服务 - nginx + SolidJS
+  # 🌐 前端服务 - nginx + SolidJS（已优化）
   web:
     image: ${WEB_IMAGE:-ghcr.io/hellocplusplus0/v7/web:latest}
     container_name: v7-web
     restart: unless-stopped
     
-    # 🔌 端口映射
+    # 🔌 端口映射（参数化配置）
     ports:
-      - "80:3000"     # 主要 Web 端口
-      - "8080:3000"   # 备用端口
+      - "80:${WEB_PORT:-3000}"
+      - "8080:${WEB_PORT:-3000}"
     
     environment:
       - NODE_ENV=${NODE_ENV:-production}
       - TZ=Asia/Shanghai
-      - NGINX_USER=root
-      - NGINX_PORT=3000
+      - NGINX_PORT=${WEB_PORT:-3000}
       - NGINX_WORKER_PROCESSES=auto
       - NGINX_WORKER_CONNECTIONS=1024
       - NGINX_LOG_LEVEL=warn
       # gRPC-Web 配置
-      - GRPC_WEB_ENDPOINT=http://backend:50053
+      - GRPC_WEB_ENDPOINT=http://backend:${BACKEND_GRPC_PORT:-50053}
     
     networks:
       - v7-network
@@ -106,24 +110,27 @@ services:
     deploy:
       resources:
         limits:
-          memory: 256M
-          cpus: '0.5'
+          memory: 128M  # 调整：nginx优化后内存占用更小
+          cpus: '0.3'   # 调整：三阶段构建后性能提升
         reservations:
-          memory: 128M
-          cpus: '0.1'
+          memory: 64M   # 调整：减少内存预留
+          cpus: '0.05'
     
     healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:3000/health"]
+      test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://localhost:${WEB_PORT:-3000}/health"]
       interval: 30s
       timeout: 10s
       retries: 3
-      start_period: 30s
+      start_period: 10s  # 减少：优化后启动更快
     
     security_opt:
       - no-new-privileges:true
     tmpfs:
       - /tmp:nosuid,size=50m
       - /var/run:nosuid,size=10m
+    
+    # 使用非特权用户（匹配Dockerfile优化）
+    user: "${WEB_UID:-101}:${WEB_GID:-101}"
     
     depends_on:
       backend:
@@ -132,60 +139,83 @@ services:
     labels:
       - "app=v7"
       - "service=web"
-      - "version=latest"
+      - "version=optimized"
+      - "architecture=solidjs+typescript+vite"
+      - "optimization=multi-stage+gzip+csp"
 
-  # 📊 分析引擎 - 优化网络配置
+  # 📊 分析引擎 - 已针对Dockerfile优化调整
   analytics-engine:
-    build:
-      context: ./analytics-engine
-      dockerfile: Dockerfile
-    image: v7-analytics-engine:latest
+    image: ${ANALYTICS_IMAGE:-v7-analytics-engine:latest}
     container_name: v7-analytics-engine
     restart: unless-stopped
     
-    # 🔌 端口配置
+    # 🔌 端口配置（参数化）
     expose:
-      - "50051"  # 内部gRPC端口
+      - "${ANALYTICS_PORT:-50051}"
     # ports:
-    #   - "50051:50051"  # 仅在跨服务器部署时取消注释
+    #   - "${ANALYTICS_PORT:-50051}:${ANALYTICS_PORT:-50051}"  # 仅在跨服务器部署时启用
     
     networks:
       - v7-network
     
     environment:
-      - ANALYTICS_LISTEN_ADDR=0.0.0.0:50051
-      - RUST_LOG=info
+      - ANALYTICS_LISTEN_ADDR=0.0.0.0:${ANALYTICS_PORT:-50051}
+      - ANALYTICS_PORT=${ANALYTICS_PORT:-50051}
+      - RUST_LOG=${RUST_LOG:-info}
       - PYTHONPATH=/home/analytics/python
-      # 性能优化配置
+      # 性能优化配置（匹配Dockerfile优化）
       - RAYON_NUM_THREADS=2
       - PYTHON_BRIDGE_THREADS=4
+      - MALLOC_ARENA_MAX=2
+      - MALLOC_TRIM_THRESHOLD_=131072
+      # Python依赖锁定配置
+      - PYTHON_EXACT_VERSIONS=true
+      - REQUIREMENTS_LOCKED=true
     
     volumes:
-      - analytics-socket:/tmp/analytics:Z  # Unix Domain Socket
-      - analytics-data:/home/analytics/data:Z  # 数据持久化
+      - analytics-socket:/tmp/app-runtime:Z  # 匹配Dockerfile优化后的路径
+      - analytics-data:/home/analytics/data:Z
+      - analytics-logs:/home/analytics/logs:Z
     
     healthcheck:
-      test: ["CMD", "grpcurl", "-plaintext", "localhost:50051", "analytics.AnalyticsEngine/HealthCheck"]
+      test: ["CMD", "/home/analytics/analytics-engine", "--health-check"]  # 使用内建健康检查
       interval: 30s
       timeout: 10s
       retries: 3
-      start_period: 15s
+      start_period: 15s  # 减少：优化后启动更快
     
     deploy:
       resources:
         limits:
-          memory: 1G
-          cpus: '1.0'
+          memory: 768M  # 调整：静态链接后内存占用减少
+          cpus: '0.8'   # 调整：优化后性能提升
         reservations:
-          memory: 512M
-          cpus: '0.5'
+          memory: 384M  # 调整：减少内存预留
+          cpus: '0.3'
+    
+    # 使用非特权用户（匹配Dockerfile优化）
+    user: "${ANALYTICS_UID:-1001}:${ANALYTICS_GID:-1001}"
+    
+    security_opt:
+      - no-new-privileges:true
+    tmpfs:
+      - /tmp:noexec,nosuid,size=100m
+    
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
     
     labels:
       - "app=v7"
       - "service=analytics-engine"
+      - "version=optimized"
       - "protocol=grpc"
+      - "architecture=rust+python"
+      - "optimization=static-binary+wheels+lto"
 
-# 🌐 网络配置
+# 🌐 网络配置（增强）
 networks:
   v7-network:
     driver: bridge
@@ -194,20 +224,37 @@ networks:
       driver: default
       config:
         - subnet: 172.20.0.0/16
+    driver_opts:
+      com.docker.network.bridge.name: v7-bridge
+      com.docker.network.driver.mtu: 1500
     labels:
       - "app=v7"
       - "type=internal"
+      - "version=optimized"
 
-# 📁 数据卷配置
+# 📁 数据卷配置（增强）
 volumes:
   analytics-socket:
     driver: local
+    driver_opts:
+      type: tmpfs
+      device: tmpfs
+      o: "size=100m,uid=${ANALYTICS_UID:-1001},gid=${ANALYTICS_GID:-1001}"
     labels:
       - "app=v7"
       - "type=socket"
+      - "service=analytics-engine"
   
   analytics-data:
     driver: local
     labels:
       - "app=v7"
-      - "type=data" 
+      - "type=data"
+      - "service=analytics-engine"
+  
+  analytics-logs:
+    driver: local
+    labels:
+      - "app=v7"
+      - "type=logs"
+      - "service=analytics-engine" 

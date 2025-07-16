@@ -3,9 +3,9 @@ name: 🚀 V7 CI/CD Pipeline
 
 on:
   push:
-    branches: [ main, develop ]
+    branches: [ main ]  # 仅main分支推送触发
   pull_request:
-    branches: [ main, develop ]
+    branches: [ main ]  # 仅main分支的PR触发
 
 env:
   # 容器镜像配置 - 完备的认证机制

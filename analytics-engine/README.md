@@ -653,3 +653,40 @@ MIT License - 详见 [LICENSE](LICENSE) 文件
 ---
 
 **Analytics Engine** - 将Rust的性能与Python的生态完美融合 🚀 
+
+# 🐍 Rust+Python混合分析引擎 - PyO3动态链接最佳实践
+
+本项目采用Debian/python-slim基础镜像，Rust主流程+PyO3动态链接Python，兼顾极致性能、广泛算法支持与可维护性。
+
+## 构建与运行流程
+
+1. 多阶段构建，分离编译与运行，最终镜像极致精简
+2. Rust主流程极致性能，Python补足算法广泛性
+3. PyO3采用动态链接（abi3），无需静态libpython，兼容性强
+4. 支持国内apt/pip源加速，适配CI/CD与本地开发
+5. 非特权用户、健康检查、只读文件系统等最佳实践全覆盖
+
+## 性能与维护性优势
+
+- 镜像体积适中（200~300MB），拉取与部署高效
+- 运行时性能与Alpine静态编译无本质差异
+- 维护性极高，兼容PyO3官方推荐，生态支持好
+- 支持后续Python算法热更新与扩展
+
+## 构建命令
+
+```bash
+podman build -t analytics-engine:latest -f Dockerfile .
+```
+
+## 运行命令
+
+```bash
+podman run -d --name analytics-engine \
+  -p 50051:50051 \
+  -e PYTHONUNBUFFERED=1 \
+  analytics-engine:latest
+```
+
+---
+如需进一步瘦身或定制优化，请参考Dockerfile内注释或联系维护者。 

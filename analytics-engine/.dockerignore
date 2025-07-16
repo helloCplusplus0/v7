@@ -1,0 +1,13 @@
+target/
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+*.so
+*.egg-info/
+*.whl
+.env
+venv/
+.idea/
+.vscode/
+.git/ 
