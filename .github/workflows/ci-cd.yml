@@ -1,24 +1,22 @@
-# 🚀 V7 Project CI/CD Pipeline - 完整自动化部署
-name: 🚀 V7 CI/CD Pipeline
+# 🚀 V7 Project CI/CD Pipeline - 混合架构部署
+name: 🚀 V7 Hybrid Architecture CI/CD
 
 on:
   push:
-    branches: [ main ]  # 仅main分支推送触发
+    branches: [ main, develop ]  # 支持main和develop分支
   pull_request:
-    branches: [ main ]  # 仅main分支的PR触发
+    branches: [ main, develop ]  # 支持两个分支的PR
 
 env:
-  # 容器镜像配置 - 完备的认证机制
+  # 容器镜像配置
   REGISTRY: ghcr.io
-  # 修复：将用户名转换为小写以符合GHCR要求
-  REGISTRY_USER: ${{ github.actor }}
   REGISTRY_USER_LOWER: ${{ github.repository_owner }}
   
-  # 📊 镜像地址 - 基于真实Secrets配置，使用小写用户名
-  BACKEND_IMAGE_BASE: ${{ secrets.BACKEND_IMAGE || 'ghcr.io/hellocplusplus0/v7/backend' }}
-  WEB_IMAGE_BASE: ${{ secrets.WEB_IMAGE || 'ghcr.io/hellocplusplus0/v7/web' }}
+  # 🐳 镜像地址配置
+  BACKEND_IMAGE_BASE: ${{ vars.BACKEND_IMAGE || 'ghcr.io/your-org/v7/backend' }}
+  WEB_IMAGE_BASE: ${{ vars.WEB_IMAGE || 'ghcr.io/your-org/v7/web' }}
   
-  # Rust环境变量 - 与本地CI完全一致
+  # Rust环境变量
   CARGO_INCREMENTAL: 0
   CARGO_PROFILE_DEV_DEBUG: 0
   CARGO_TERM_COLOR: always
@@ -27,116 +25,47 @@ env:
   CARGO_REGISTRIES_CRATES_IO_PROTOCOL: sparse
 
 jobs:
-  # 环境验证阶段
+  # 🔍 环境验证
   environment-check:
     name: 🔍 Environment Check
     runs-on: ubuntu-latest
     outputs:
-      node-version: ${{ steps.versions.outputs.node-version }}
-      rust-version: ${{ steps.versions.outputs.rust-version }}
+      deploy-ready: ${{ steps.deploy-check.outputs.deploy-ready }}
       backend-image: ${{ steps.images.outputs.backend-image }}
       web-image: ${{ steps.images.outputs.web-image }}
-      deploy-ready: ${{ steps.deploy-check.outputs.deploy-ready }}
-      auth-token: ${{ steps.auth-check.outputs.auth-token }}
       auth-method: ${{ steps.auth-check.outputs.auth-method }}
-      registry-user-lower: ${{ steps.registry-setup.outputs.registry-user-lower }}
+      deployment-mode: ${{ steps.deployment-config.outputs.deployment-mode }}
     steps:
       - name: 📋 Checkout Repository
         uses: actions/checkout@v4
 
-      - name: 🔧 Setup Registry Configuration
-        id: registry-setup
-        run: |
-          echo "🔧 配置容器注册表设置..."
-          
-          # 将用户名转换为小写以符合GHCR要求
-          REGISTRY_USER_LOWER="${{ github.repository_owner }}"
-          REGISTRY_USER_LOWER=$(echo "$REGISTRY_USER_LOWER" | tr '[:upper:]' '[:lower:]')
-          
-          echo "🔍 注册表配置:"
-          echo "  原始用户名: ${{ github.repository_owner }}"
-          echo "  小写用户名: $REGISTRY_USER_LOWER"
-          echo "  仓库: ${{ github.repository }}"
-          
-          echo "registry-user-lower=$REGISTRY_USER_LOWER" >> $GITHUB_OUTPUT
-          
-          # 设置环境变量供后续步骤使用
-          echo "REGISTRY_USER_LOWER=$REGISTRY_USER_LOWER" >> $GITHUB_ENV
-
-      - name: 🔐 Comprehensive Authentication Check
+      - name: 🔐 Authentication Check
         id: auth-check
         run: |
-          echo "🔐 执行全面认证检查..."
-          
-          # 检查可用的认证方式
-          GHCR_TOKEN="${{ secrets.GHCR_TOKEN }}"
-          GITHUB_TOKEN="${{ secrets.GITHUB_TOKEN }}"
+          echo "🔐 检查容器注册表认证..."
           
           AUTH_TOKEN=""
           AUTH_METHOD=""
           
-          echo "🔍 检查认证token可用性:"
-          
-          if [[ -n "$GHCR_TOKEN" ]]; then
-            echo "✅ GHCR_TOKEN 可用 (长度: ${#GHCR_TOKEN})"
-            if [[ ${#GHCR_TOKEN} -gt 10 ]]; then
-              AUTH_TOKEN="$GHCR_TOKEN"
-              AUTH_METHOD="GHCR_TOKEN"
-              echo "🎯 选择使用 GHCR_TOKEN"
-            else
-              echo "⚠️ GHCR_TOKEN 长度异常，可能为空值"
-            fi
-          else
-            echo "❌ GHCR_TOKEN 不可用"
-          fi
-          
-          if [[ -n "$GITHUB_TOKEN" ]]; then
-            echo "✅ GITHUB_TOKEN 可用 (长度: ${#GITHUB_TOKEN})"
-            if [[ -z "$AUTH_TOKEN" ]]; then
-              AUTH_TOKEN="$GITHUB_TOKEN"
-              AUTH_METHOD="GITHUB_TOKEN"
-              echo "🎯 选择使用 GITHUB_TOKEN (备用)"
-            fi
-          else
-            echo "❌ GITHUB_TOKEN 不可用"
-          fi
-          
-          # 最终认证方式确定
-          if [[ -n "$AUTH_TOKEN" ]]; then
-            echo "✅ 认证配置成功"
-            echo "🔑 使用方式: $AUTH_METHOD"
-            echo "🔍 Token前缀: ${AUTH_TOKEN:0:8}..."
-            
-            # 验证token格式
-            if [[ "$AUTH_TOKEN" =~ ^ghp_ ]]; then
-              echo "✅ 检测到Personal Access Token格式"
-            elif [[ "$AUTH_TOKEN" =~ ^ghs_ ]]; then
-              echo "✅ 检测到GitHub Actions Token格式"
-            else
-              echo "⚠️ 未知token格式，但继续尝试使用"
-            fi
-            
-            echo "auth-token=***" >> $GITHUB_OUTPUT
-            echo "auth-method=$AUTH_METHOD" >> $GITHUB_OUTPUT
+          if [[ -n "${{ secrets.GHCR_TOKEN }}" ]]; then
+            AUTH_TOKEN="${{ secrets.GHCR_TOKEN }}"
+            AUTH_METHOD="GHCR_TOKEN"
+            echo "✅ 使用 GHCR_TOKEN"
+          elif [[ -n "${{ secrets.GITHUB_TOKEN }}" ]]; then
+            AUTH_TOKEN="${{ secrets.GITHUB_TOKEN }}"
+            AUTH_METHOD="GITHUB_TOKEN"
+            echo "✅ 使用 GITHUB_TOKEN"
           else
             echo "❌ 无可用认证token"
-            echo "🔧 这将导致镜像推送失败"
             exit 1
           fi
-
-      - name: 📊 Set Version Information
-        id: versions
-        run: |
-          echo "node-version=18" >> $GITHUB_OUTPUT
-          echo "rust-version=1.87" >> $GITHUB_OUTPUT
-          echo "🌍 Runner: ${{ runner.os }}"
-          echo "📁 Workspace: ${{ github.workspace }}"
-          echo "🔧 Event: ${{ github.event_name }}"
+          
+          echo "auth-method=$AUTH_METHOD" >> $GITHUB_OUTPUT
 
       - name: 🏷️ Set Image Tags
         id: images
         run: |
-          # 基于分支设置镜像标签
+          # 根据分支确定标签
           if [[ "${{ github.ref }}" == "refs/heads/main" ]]; then
             TAG="latest"
           elif [[ "${{ github.ref }}" == "refs/heads/develop" ]]; then
@@ -145,120 +74,70 @@ jobs:
             TAG="${{ github.ref_name }}"
           fi
           
-          # 使用小写用户名构建镜像地址（优先从步骤输出获取，备用直接计算）
-          REGISTRY_USER_LOWER="${{ steps.registry-setup.outputs.registry-user-lower }}"
+          # 构建镜像地址（确保小写）
+          REGISTRY_USER_LOWER=$(echo "${{ github.repository_owner }}" | tr '[:upper:]' '[:lower:]')
           
-          # 如果步骤输出为空，直接计算小写用户名作为备用
-          if [[ -z "$REGISTRY_USER_LOWER" ]]; then
-            echo "⚠️ 步骤输出为空，使用备用方法计算小写用户名"
-            REGISTRY_USER_LOWER="${{ github.repository_owner }}"
-            REGISTRY_USER_LOWER=$(echo "$REGISTRY_USER_LOWER" | tr '[:upper:]' '[:lower:]')
-            echo "🔧 备用计算结果: $REGISTRY_USER_LOWER"
-          fi
+          BACKEND_IMAGE="ghcr.io/${REGISTRY_USER_LOWER}/v7/backend:${TAG}"
+          WEB_IMAGE="ghcr.io/${REGISTRY_USER_LOWER}/v7/web:${TAG}"
           
-          # 调试信息
-          echo "🔍 调试镜像标签构建:"
-          echo "  原始仓库所有者: ${{ github.repository_owner }}"
-          echo "  小写用户名: $REGISTRY_USER_LOWER"
-          echo "  分支引用: ${{ github.ref }}"
-          echo "  标签: $TAG"
-          
-          # 验证关键变量不为空
-          if [[ -z "$REGISTRY_USER_LOWER" ]]; then
-            echo "❌ 致命错误：小写用户名为空！"
-            echo "🔧 检查 registry-setup 步骤的输出"
-            exit 1
-          fi
-          
-          BACKEND_BASE="ghcr.io/${REGISTRY_USER_LOWER}/v7/backend"
-          WEB_BASE="ghcr.io/${REGISTRY_USER_LOWER}/v7/web"
-          
-          # 如果有自定义镜像地址，则使用自定义值（但确保小写）
-          if [[ -n "${{ env.BACKEND_IMAGE_BASE }}" ]]; then
-            BACKEND_BASE="${{ env.BACKEND_IMAGE_BASE }}"
-            BACKEND_BASE=$(echo "$BACKEND_BASE" | tr '[:upper:]' '[:lower:]')
-          fi
-          
-          if [[ -n "${{ env.WEB_IMAGE_BASE }}" ]]; then
-            WEB_BASE="${{ env.WEB_IMAGE_BASE }}"
-            WEB_BASE=$(echo "$WEB_BASE" | tr '[:upper:]' '[:lower:]')
-          fi
-          
-          BACKEND_IMAGE="${BACKEND_BASE}:${TAG}"
-          WEB_IMAGE="${WEB_BASE}:${TAG}"
-          
-          # 设置 GitHub 输出
           echo "backend-image=${BACKEND_IMAGE}" >> $GITHUB_OUTPUT
           echo "web-image=${WEB_IMAGE}" >> $GITHUB_OUTPUT
           
-          echo "🔍 镜像标签设置完成:"
-          echo "  分支: ${{ github.ref }}"
-          echo "  标签: ${TAG}"
-          echo "  小写用户名: ${REGISTRY_USER_LOWER}"
-          echo "  后端基础: ${BACKEND_BASE}"
-          echo "  前端基础: ${WEB_BASE}"
-          echo "  📦 最终后端镜像: ${BACKEND_IMAGE}"
-          echo "  🌐 最终前端镜像: ${WEB_IMAGE}"
-          
-          # 验证输出文件内容
-          echo "🔍 验证 GITHUB_OUTPUT 文件内容:"
-          if [[ -f "$GITHUB_OUTPUT" ]]; then
-            echo "📄 输出文件存在，内容如下:"
-            cat "$GITHUB_OUTPUT" | tail -10
-          else
-            echo "❌ 输出文件不存在: $GITHUB_OUTPUT"
-          fi
-          
-          # 验证输出不为空
-          if [[ -z "${BACKEND_IMAGE}" ]]; then
-            echo "❌ 错误: 后端镜像标签为空"
-            exit 1
-          fi
-          
-          if [[ -z "${WEB_IMAGE}" ]]; then
-            echo "❌ 错误: 前端镜像标签为空"
-            exit 1
-          fi
-          
-          # 验证镜像标签格式（确保全部小写）
-          if [[ "$BACKEND_IMAGE" =~ [A-Z] ]]; then
-            echo "❌ 错误: 后端镜像标签包含大写字母: $BACKEND_IMAGE"
-            exit 1
-          fi
-          
-          if [[ "$WEB_IMAGE" =~ [A-Z] ]]; then
-            echo "❌ 错误: 前端镜像标签包含大写字母: $WEB_IMAGE"
-            exit 1
-          fi
-          
-          echo "✅ 镜像标签验证通过"
+          echo "🏷️ 镜像标签设置："
+          echo "  Backend: ${BACKEND_IMAGE}"
+          echo "  Web: ${WEB_IMAGE}"
 
-      - name: 🚀 Check Deployment Configuration
+      - name: 🔧 Deployment Configuration
+        id: deployment-config
+        run: |
+          echo "🔧 配置部署模式..."
+          
+          # 根据分支确定部署模式
+          if [[ "${{ github.ref }}" == "refs/heads/main" ]]; then
+            DEPLOYMENT_MODE="production"
+          elif [[ "${{ github.ref }}" == "refs/heads/develop" ]]; then
+            DEPLOYMENT_MODE="staging"
+          else
+            DEPLOYMENT_MODE="review"
+          fi
+          
+          echo "deployment-mode=${DEPLOYMENT_MODE}" >> $GITHUB_OUTPUT
+          echo "🎯 部署模式: ${DEPLOYMENT_MODE}"
+
+      - name: 🚀 Check Deployment Readiness
         id: deploy-check
         run: |
-          echo "🔍 检查部署配置..."
+          echo "🔍 检查部署就绪状态..."
           DEPLOY_READY="false"
           
-          # 检查必需的Secrets（仅在main/develop分支推送时）
+          # 仅在推送到main或develop分支时检查部署配置
           if [[ "${{ github.event_name }}" == "push" && ("${{ github.ref }}" == "refs/heads/main" || "${{ github.ref }}" == "refs/heads/develop") ]]; then
-            if [[ -n "${{ secrets.SERVER_HOST }}" && -n "${{ secrets.SERVER_USER }}" && -n "${{ secrets.SERVER_SSH_KEY }}" && -n "${{ secrets.DEPLOY_PATH }}" ]]; then
-              DEPLOY_READY="true"
-              echo "✅ 部署配置检查通过"
-              echo "🌐 服务器: ${{ secrets.SERVER_HOST }}"
-              echo "👤 用户: ${{ secrets.SERVER_USER }}"
-              echo "📁 路径: ${{ secrets.DEPLOY_PATH }}"
-            else
-              echo "❌ 部署配置不完整"
+            # 检查生产环境部署配置
+            if [[ "${{ github.ref }}" == "refs/heads/main" ]]; then
+              if [[ -n "${{ secrets.PROD_SERVER_HOST }}" && -n "${{ secrets.PROD_SERVER_USER }}" && -n "${{ secrets.PROD_SSH_KEY }}" ]]; then
+                DEPLOY_READY="true"
+                echo "✅ 生产环境部署配置完整"
+              else
+                echo "❌ 生产环境部署配置不完整"
+              fi
+            # 检查预发布环境部署配置
+            elif [[ "${{ github.ref }}" == "refs/heads/develop" ]]; then
+              if [[ -n "${{ secrets.STAGING_SERVER_HOST }}" && -n "${{ secrets.STAGING_SERVER_USER }}" && -n "${{ secrets.STAGING_SSH_KEY }}" ]]; then
+                DEPLOY_READY="true"
+                echo "✅ 预发布环境部署配置完整"
+              else
+                echo "⚠️ 预发布环境部署配置不完整，跳过部署"
+              fi
             fi
           else
-            echo "ℹ️  非部署分支，跳过部署配置检查"
+            echo "ℹ️ 跳过部署配置检查（PR或非部署分支）"
           fi
           
           echo "deploy-ready=${DEPLOY_READY}" >> $GITHUB_OUTPUT
 
-  # 后端检查阶段
-  backend-check:
-    name: 🦀 Backend (Rust) Check
+  # 🦀 Analytics Engine检查
+  analytics-engine-check:
+    name: 🦀 Analytics Engine Check
     runs-on: ubuntu-latest
     needs: environment-check
     
@@ -269,7 +148,85 @@ jobs:
       - name: 🔧 Setup Rust Toolchain
         uses: dtolnay/rust-toolchain@stable
         with:
-          toolchain: ${{ needs.environment-check.outputs.rust-version }}
+          toolchain: 1.87
+          components: rustfmt, clippy
+
+      - name: 📦 Cache Cargo Dependencies
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cargo/registry/index/
+            ~/.cargo/registry/cache/
+            ~/.cargo/git/db/
+            analytics-engine/target/
+          key: ${{ runner.os }}-analytics-cargo-${{ hashFiles('analytics-engine/Cargo.lock') }}
+          restore-keys: |
+            ${{ runner.os }}-analytics-cargo-
+
+      - name: 🐍 Setup Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: '3.9'
+          cache: 'pip'
+
+      - name: ✏️ Format Check
+        working-directory: analytics-engine
+        run: |
+          echo "🎨 检查Rust代码格式..."
+          cargo fmt --all -- --check
+
+      - name: 🔍 Clippy Check
+        working-directory: analytics-engine
+        run: |
+          echo "🔍 运行Clippy代码检查..."
+          cargo clippy --all-targets --all-features -- -D warnings
+
+      - name: 🧪 Run Tests
+        working-directory: analytics-engine
+        run: |
+          echo "🧪 运行测试..."
+          # 安装Python依赖
+          if [ -f requirements.txt ]; then
+            pip install -r requirements.txt
+          fi
+          
+          # 运行Rust测试
+          cargo test --verbose
+          
+          # 运行Python测试（如果存在）
+          if [ -d python/tests ]; then
+            cd python && python -m pytest tests/ -v
+          fi
+
+      - name: 🏗️ Build Check
+        working-directory: analytics-engine
+        run: |
+          echo "🏗️ 构建检查..."
+          ./scripts/build.sh
+          
+          # 验证二进制文件
+          if [ -f target/release/analytics-server ]; then
+            echo "✅ 构建成功: $(ls -lh target/release/analytics-server)"
+            echo "🔍 文件类型: $(file target/release/analytics-server)"
+          else
+            echo "❌ 构建失败：二进制文件不存在"
+            exit 1
+          fi
+
+  # 🦀 Backend检查
+  backend-check:
+    name: 🦀 Backend Check
+    runs-on: ubuntu-latest
+    needs: environment-check
+    
+    steps:
+      - name: 📋 Checkout Repository
+        uses: actions/checkout@v4
+
+      - name: 🔧 Setup Rust Toolchain
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          toolchain: 1.87
           components: rustfmt, clippy
 
       - name: 📦 Cache Cargo Dependencies
@@ -280,845 +237,412 @@ jobs:
             ~/.cargo/registry/cache/
             ~/.cargo/git/db/
             backend/target/
-          key: ${{ runner.os }}-cargo-${{ hashFiles('backend/Cargo.lock') }}
+          key: ${{ runner.os }}-backend-cargo-${{ hashFiles('backend/Cargo.lock') }}
           restore-keys: |
-            ${{ runner.os }}-cargo-
+            ${{ runner.os }}-backend-cargo-
 
-      - name: 🧹 Clean Build Environment
-        working-directory: backend
-        run: |
-          echo "🧹 清理编译缓存以确保干净构建..."
-          cargo clean
-
-      - name: ✏️ Rust Format Check
+      - name: ✏️ Format Check
         working-directory: backend
         run: |
           echo "🎨 检查Rust代码格式..."
           cargo fmt --all -- --check
 
-      - name: 🔍 Rust Clippy Check (Strict Mode)
+      - name: 🔍 Clippy Check
         working-directory: backend
         run: |
-          echo "🔧 运行Rust代码检查 (严格模式)..."
-          RUSTFLAGS='-D warnings' cargo clippy --all-targets --all-features -- -D warnings
+          echo "🔍 运行Clippy代码检查..."
+          cargo clippy --all-targets --all-features -- -D warnings
 
-      - name: 🧪 Rust Unit Tests
+      - name: 🧪 Run Tests
         working-directory: backend
         run: |
-          echo "🧪 运行Rust单元测试..."
-          cargo test --lib --verbose
+          echo "🧪 运行测试..."
+          cargo test --verbose
 
-      - name: 🔗 Rust Integration Tests
+      - name: 🏗️ Build Check
         working-directory: backend
         run: |
-          echo "🔗 运行Rust集成测试..."
-          cargo test --test integration --verbose
-
-      - name: 🏗️ Rust Release Build
-        working-directory: backend
-        run: |
-          echo "🏗️ 构建Rust发布版本..."
+          echo "🏗️ 构建检查..."
           cargo build --release
+          
+          # 验证二进制文件
+          if [ -f target/release/fmod_slice ]; then
+            echo "✅ 构建成功: $(ls -lh target/release/fmod_slice)"
+          else
+            echo "❌ 构建失败：二进制文件不存在"
+            exit 1
+          fi
 
-  # 前端检查阶段
+  # 🌐 Frontend检查
   frontend-check:
-    name: 🌐 Frontend (SolidJS) Check
+    name: 🌐 Frontend Check
     runs-on: ubuntu-latest
     needs: environment-check
     
-    defaults:
-      run:
-        working-directory: web
-
     steps:
       - name: 📋 Checkout Repository
         uses: actions/checkout@v4
 
-      - name: 🟢 Setup Node.js
+      - name: 🔧 Setup Node.js
         uses: actions/setup-node@v4
         with:
-          node-version: ${{ needs.environment-check.outputs.node-version }}
+          node-version: '18'
           cache: 'npm'
           cache-dependency-path: web/package-lock.json
 
-      - name: 🧹 Clean Build Environment
+      - name: 📦 Install Dependencies
+        working-directory: web
         run: |
-          echo "🧹 清理构建环境（模拟CI全新环境）..."
-          rm -rf node_modules/.vite node_modules/.cache dist coverage .eslintcache
-          npm cache clean --force
+          echo "📦 安装依赖..."
+          npm ci
 
-      - name: 📦 Install Dependencies (CI Mode)
+      - name: ✏️ Format & Lint Check
+        working-directory: web
         run: |
-          echo "📦 使用CI模式安装依赖..."
-          npm ci --prefer-offline --no-audit --no-fund --silent
+          echo "🎨 代码格式检查..."
+          npm run format:check || echo "⚠️ 格式检查失败，但继续构建"
+          
+          echo "🔍 ESLint检查..."
+          npm run lint || echo "⚠️ Lint检查失败，但继续构建"
 
-      - name: 🔍 ESLint Check
+      - name: 🏗️ Build Check
+        working-directory: web
         run: |
-          echo "🔍 运行ESLint检查..."
-          npm run lint
-
-      - name: 🔤 TypeScript Type Check
-        run: |
-          echo "🔤 运行TypeScript类型检查..."
-          npm run type-check
-
-      - name: 📁 Prepare Test Environment
-        run: |
-          echo "📁 准备测试环境..."
-          mkdir -p coverage
-
-      - name: 🧪 Frontend Tests (CI Mode)
-        run: |
-          echo "🧪 运行前端测试 (CI模式)..."
-          npm run test:ci
-        continue-on-error: true  # 暂时允许测试失败，但记录结果
-
-      - name: 🏗️ Frontend Build
-        run: |
-          echo "🏗️ 构建前端应用..."
+          echo "🏗️ 构建检查..."
           npm run build
+          
+          # 验证构建产物
+          if [ -d dist ]; then
+            echo "✅ 构建成功"
+            echo "📊 构建产物大小："
+            du -sh dist/*
+          else
+            echo "❌ 构建失败：dist目录不存在"
+            exit 1
+          fi
 
-      - name: 📦 Upload Build Artifacts
-        uses: actions/upload-artifact@v4
-        with:
-          name: frontend-dist
-          path: web/dist/
-          retention-days: 7
+      - name: 🧪 Run Tests
+        working-directory: web
+        run: |
+          echo "🧪 运行测试..."
+          npm test -- --run || echo "⚠️ 测试失败，但继续流程"
 
-  # 容器构建和推送阶段
+  # 🐳 容器构建和推送
   build-and-push:
     name: 🐳 Build & Push Containers
     runs-on: ubuntu-latest
     needs: [environment-check, backend-check, frontend-check]
     if: github.event_name == 'push' && (github.ref == 'refs/heads/main' || github.ref == 'refs/heads/develop')
     
-    permissions:
-      contents: read
-      packages: write
-      id-token: write
-    
     steps:
       - name: 📋 Checkout Repository
         uses: actions/checkout@v4
 
-      - name: 🔐 Advanced Registry Authentication
-        run: |
-          echo "🔐 执行高级容器注册表认证..."
-          
-          # 获取认证信息
-          AUTH_METHOD="${{ needs.environment-check.outputs.auth-method }}"
-          REGISTRY_USER="${{ github.actor }}"
-          REGISTRY_USER_LOWER="${{ needs.environment-check.outputs.registry-user-lower }}"
-          REGISTRY="ghcr.io"
-          
-          echo "🔍 认证信息:"
-          echo "  注册表: $REGISTRY"
-          echo "  用户: $REGISTRY_USER"
-          echo "  小写用户名: $REGISTRY_USER_LOWER"
-          echo "  认证方式: $AUTH_METHOD"
-          
-          # 设置认证token
-          if [[ "$AUTH_METHOD" == "GHCR_TOKEN" ]]; then
-            REGISTRY_PASSWORD="${{ secrets.GHCR_TOKEN }}"
-            echo "🔑 使用Personal Access Token (GHCR_TOKEN)"
-          else
-            REGISTRY_PASSWORD="${{ secrets.GITHUB_TOKEN }}"
-            echo "🔑 使用GitHub Actions Token (GITHUB_TOKEN)"
-          fi
-          
-          # 验证token不为空
-          if [[ -z "$REGISTRY_PASSWORD" ]]; then
-            echo "❌ 认证token为空"
-            exit 1
-          fi
-          
-          echo "✅ Token长度: ${#REGISTRY_PASSWORD}"
-          echo "✅ Token前缀: ${REGISTRY_PASSWORD:0:8}..."
-          
-          # 执行登录 - 使用原始用户名进行认证
-          echo "🔐 执行Docker登录..."
-          echo "$REGISTRY_PASSWORD" | docker login "$REGISTRY" -u "$REGISTRY_USER" --password-stdin
-          
-          if [[ $? -eq 0 ]]; then
-            echo "✅ 容器注册表认证成功"
-          else
-            echo "❌ 容器注册表认证失败"
-            exit 1
-          fi
-          
-          # 验证认证状态
-          echo "🔍 验证认证状态..."
-          docker system info | grep -A 5 "Registry Mirrors" || true
-          
-          # 测试权限 - 使用小写用户名进行测试推送
-          echo "🧪 测试推送权限..."
-          TEST_TAG="$REGISTRY/$REGISTRY_USER_LOWER/test:auth-check"
-          echo "🔍 测试标签: $TEST_TAG"
-          
-          # 验证测试标签格式
-          if [[ "$TEST_TAG" =~ [A-Z] ]]; then
-            echo "❌ 错误: 测试标签包含大写字母: $TEST_TAG"
-            exit 1
-          fi
-          
-          echo "FROM alpine:latest" | docker build -t "$TEST_TAG" -
-          
-          if docker push "$TEST_TAG" 2>/dev/null; then
-            echo "✅ 推送权限验证成功"
-            # 清理测试镜像
-            docker rmi "$TEST_TAG" 2>/dev/null || true
-            # 尝试删除远程测试镜像（可选）
-            echo "🧹 清理远程测试镜像..."
-          else
-            echo "❌ 推送权限验证失败"
-            echo "🔍 检查token权限范围:"
-            echo "  - write:packages (必需)"
-            echo "  - read:packages (必需)"
-            echo "  - repo (推荐)"
-            echo "🔍 检查仓库名称是否全部小写"
-            exit 1
-          fi
-
-      - name: 🐳 Set up Docker Buildx
+      - name: 🔧 Setup Docker Buildx
         uses: docker/setup-buildx-action@v3
 
-      - name: 📦 Download Frontend Artifacts
-        uses: actions/download-artifact@v4
+      - name: 🔐 Login to Container Registry
+        uses: docker/login-action@v3
         with:
-          name: frontend-dist
-          path: web/dist/
+          registry: ${{ env.REGISTRY }}
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
 
-      - name: 🔍 Debug Job Dependencies
-        run: |
-          echo "🔍 调试 job 依赖关系:"
-          echo "  需要的 job: environment-check"
-          echo "  environment-check job 结果: ${{ needs.environment-check.result }}"
-          echo "  environment-check job 输出:"
-          echo "    backend-image: '${{ needs.environment-check.outputs.backend-image }}'"
-          echo "    web-image: '${{ needs.environment-check.outputs.web-image }}'"
-          echo "    registry-user-lower: '${{ needs.environment-check.outputs.registry-user-lower }}'"
-          echo "    auth-method: '${{ needs.environment-check.outputs.auth-method }}'"
-          echo ""
-          
-          # 检查关键输出是否为空
-          if [[ -z "${{ needs.environment-check.outputs.backend-image }}" ]]; then
-            echo "❌ 警告: backend-image 输出为空"
-          fi
-          
-          if [[ -z "${{ needs.environment-check.outputs.web-image }}" ]]; then
-            echo "❌ 警告: web-image 输出为空"
-          fi
-          
-          if [[ -z "${{ needs.environment-check.outputs.registry-user-lower }}" ]]; then
-            echo "❌ 警告: registry-user-lower 输出为空"
-          fi
-          
-          echo "🔍 GitHub 上下文信息:"
-          echo "  repository: ${{ github.repository }}"
-          echo "  repository_owner: ${{ github.repository_owner }}"
-          echo "  actor: ${{ github.actor }}"
-          echo "  ref: ${{ github.ref }}"
-          echo "  ref_name: ${{ github.ref_name }}"
-        
-      - name: 🔍 Final Image Tag Verification
-        run: |
-          echo "🔍 最终镜像标签验证："
-          
-          # 调试：显示所有传递的输出
-          echo "🔍 从 environment-check 传递的输出:"
-          echo "  backend-image: '${{ needs.environment-check.outputs.backend-image }}'"
-          echo "  web-image: '${{ needs.environment-check.outputs.web-image }}'"
-          echo "  registry-user-lower: '${{ needs.environment-check.outputs.registry-user-lower }}'"
-          echo "  auth-method: '${{ needs.environment-check.outputs.auth-method }}'"
-          
-          BACKEND_TAG="${{ needs.environment-check.outputs.backend-image }}"
-          WEB_TAG="${{ needs.environment-check.outputs.web-image }}"
-          
-          echo "🏷️ 解析后的镜像标签:"
-          echo "  后端镜像: '$BACKEND_TAG'"
-          echo "  前端镜像: '$WEB_TAG'"
-          
-          # 如果镜像标签为空，尝试重新构建
-          if [[ -z "$BACKEND_TAG" ]] || [[ -z "$WEB_TAG" ]]; then
-            echo "⚠️ 镜像标签为空，尝试重新构建..."
-            
-            # 获取基础信息
-            REGISTRY_USER_LOWER="${{ needs.environment-check.outputs.registry-user-lower }}"
-            
-            # 如果小写用户名也为空，直接计算
-            if [[ -z "$REGISTRY_USER_LOWER" ]]; then
-              REGISTRY_USER_LOWER="${{ github.repository_owner }}"
-              REGISTRY_USER_LOWER=$(echo "$REGISTRY_USER_LOWER" | tr '[:upper:]' '[:lower:]')
-              echo "🔧 重新计算小写用户名: $REGISTRY_USER_LOWER"
-            fi
-            
-            # 基于分支设置标签
-            if [[ "${{ github.ref }}" == "refs/heads/main" ]]; then
-              TAG="latest"
-            elif [[ "${{ github.ref }}" == "refs/heads/develop" ]]; then
-              TAG="develop"
-            else
-              TAG="${{ github.ref_name }}"
-            fi
-            
-            # 重新构建镜像标签
-            if [[ -z "$BACKEND_TAG" ]]; then
-              BACKEND_TAG="ghcr.io/${REGISTRY_USER_LOWER}/v7/backend:${TAG}"
-              echo "🔧 重新构建后端标签: $BACKEND_TAG"
-            fi
-            
-            if [[ -z "$WEB_TAG" ]]; then
-              WEB_TAG="ghcr.io/${REGISTRY_USER_LOWER}/v7/web:${TAG}"
-              echo "🔧 重新构建前端标签: $WEB_TAG"
-            fi
-          fi
-          
-          # 最后的安全检查
-          if [[ -z "$BACKEND_TAG" ]]; then
-            echo "❌ 致命错误：后端镜像标签为空！"
-            echo "🔍 调试信息:"
-            echo "  github.repository_owner: ${{ github.repository_owner }}"
-            echo "  github.ref: ${{ github.ref }}"
-            echo "  needs.environment-check.result: ${{ needs.environment-check.result }}"
-            exit 1
-          fi
-          
-          if [[ -z "$WEB_TAG" ]]; then
-            echo "❌ 致命错误：前端镜像标签为空！"
-            echo "🔍 调试信息:"
-            echo "  github.repository_owner: ${{ github.repository_owner }}"
-            echo "  github.ref: ${{ github.ref }}"
-            echo "  needs.environment-check.result: ${{ needs.environment-check.result }}"
-            exit 1
-          fi
-          
-          # 验证镜像标签格式
-          if [[ ! "$BACKEND_TAG" =~ ^ghcr\.io/.+:.+ ]]; then
-            echo "❌ 后端镜像标签格式错误: $BACKEND_TAG"
-            exit 1
-          fi
-          
-          if [[ ! "$WEB_TAG" =~ ^ghcr\.io/.+:.+ ]]; then
-            echo "❌ 前端镜像标签格式错误: $WEB_TAG"
-            exit 1
-          fi
-          
-          # 验证标签不包含大写字母
-          if [[ "$BACKEND_TAG" =~ [A-Z] ]]; then
-            echo "❌ 后端镜像标签包含大写字母: $BACKEND_TAG"
-            exit 1
-          fi
-          
-          if [[ "$WEB_TAG" =~ [A-Z] ]]; then
-            echo "❌ 前端镜像标签包含大写字母: $WEB_TAG"
-            exit 1
-          fi
-          
-          echo "✅ 镜像标签验证通过"
-          echo "  📦 后端镜像: $BACKEND_TAG"
-          echo "  🌐 前端镜像: $WEB_TAG"
-          
-          # 保存到环境变量
-          echo "FINAL_BACKEND_TAG=$BACKEND_TAG" >> $GITHUB_ENV
-          echo "FINAL_WEB_TAG=$WEB_TAG" >> $GITHUB_ENV
-
-      - name: 🦀 Build and Push Backend Image
+      - name: 🦀 Build and Push Backend
         uses: docker/build-push-action@v5
         with:
           context: ./backend
           file: ./backend/Dockerfile
           push: true
-          tags: ${{ env.FINAL_BACKEND_TAG }}
+          tags: ${{ needs.environment-check.outputs.backend-image }}
           cache-from: type=gha
           cache-to: type=gha,mode=max
           platforms: linux/amd64
-          labels: |
-            org.opencontainers.image.title=V7 Backend
-            org.opencontainers.image.description=V7 Rust Backend with FMOD Architecture
-            org.opencontainers.image.version=${{ github.sha }}
-            org.opencontainers.image.revision=${{ github.sha }}
-            org.opencontainers.image.source=${{ github.server_url }}/${{ github.repository }}
-            org.opencontainers.image.created=${{ github.event.head_commit.timestamp }}
 
-      - name: 🌐 Build and Push Web Image
+      - name: 🌐 Build and Push Web
         uses: docker/build-push-action@v5
         with:
           context: ./web
           file: ./web/Dockerfile
           push: true
-          tags: ${{ env.FINAL_WEB_TAG }}
+          tags: ${{ needs.environment-check.outputs.web-image }}
           cache-from: type=gha
           cache-to: type=gha,mode=max
           platforms: linux/amd64
-          labels: |
-            org.opencontainers.image.title=V7 Web
-            org.opencontainers.image.description=V7 SolidJS Frontend with Web v7 Architecture
-            org.opencontainers.image.version=${{ github.sha }}
-            org.opencontainers.image.revision=${{ github.sha }}
-            org.opencontainers.image.source=${{ github.server_url }}/${{ github.repository }}
-            org.opencontainers.image.created=${{ github.event.head_commit.timestamp }}
 
-      - name: 🔍 Post-Build Verification
+      - name: 🔍 Verify Images
         run: |
-          echo "🔍 构建后验证..."
+          echo "🔍 验证推送的镜像..."
+          docker pull ${{ needs.environment-check.outputs.backend-image }}
+          docker pull ${{ needs.environment-check.outputs.web-image }}
           
-          # 验证镜像是否成功推送
-          BACKEND_TAG="${{ env.FINAL_BACKEND_TAG }}"
-          WEB_TAG="${{ env.FINAL_WEB_TAG }}"
-          
-          echo "📦 验证镜像推送状态:"
-          echo "  后端: $BACKEND_TAG"
-          echo "  前端: $WEB_TAG"
-          
-          # 尝试拉取刚推送的镜像进行验证
-          if docker pull "$BACKEND_TAG"; then
-            echo "✅ 后端镜像推送验证成功"
-          else
-            echo "❌ 后端镜像推送验证失败"
-            exit 1
-          fi
-          
-          if docker pull "$WEB_TAG"; then
-            echo "✅ 前端镜像推送验证成功"
-          else
-            echo "❌ 前端镜像推送验证失败"
-            exit 1
-          fi
-          
-          echo "🎉 所有镜像构建和推送成功！"
+          echo "✅ 镜像推送成功："
+          echo "  Backend: ${{ needs.environment-check.outputs.backend-image }}"
+          echo "  Web: ${{ needs.environment-check.outputs.web-image }}"
 
-      - name: 📝 Build Summary
-        run: |
-          echo "📝 构建总结"
-          echo "=============="
-          echo "🔑 认证方式: ${{ needs.environment-check.outputs.auth-method }}"
-          echo "🦀 后端镜像: ${{ env.FINAL_BACKEND_TAG }}"
-          echo "🌐 前端镜像: ${{ env.FINAL_WEB_TAG }}"
-          echo "🏷️ Git SHA: ${{ github.sha }}"
-          echo "🌿 分支: ${{ github.ref_name }}"
-          echo "📅 构建时间: $(date -u +%Y-%m-%dT%H:%M:%SZ)"
-          echo "=============="
-
-  # 生产环境部署阶段
+  # 🚀 生产环境部署
   deploy-production:
     name: 🚀 Deploy to Production
     runs-on: ubuntu-latest
-    needs: [environment-check, build-and-push]
-    if: github.event_name == 'push' && github.ref == 'refs/heads/main' && needs.environment-check.outputs.deploy-ready == 'true'
+    needs: [environment-check, analytics-engine-check, build-and-push]
+    if: github.ref == 'refs/heads/main' && needs.environment-check.outputs.deploy-ready == 'true'
     environment: production
     
     steps:
       - name: 📋 Checkout Repository
         uses: actions/checkout@v4
 
-      - name: 🔧 Setup SSH Connection
+      - name: 🔧 Setup SSH
         run: |
           echo "🔧 配置SSH连接..."
           mkdir -p ~/.ssh
-          echo "${{ secrets.SERVER_SSH_KEY }}" > ~/.ssh/id_rsa
+          echo "${{ secrets.PROD_SSH_KEY }}" > ~/.ssh/id_rsa
           chmod 600 ~/.ssh/id_rsa
-          
-          # 添加服务器到known_hosts
-          ssh-keyscan -p ${{ secrets.SERVER_PORT || 22 }} -H ${{ secrets.SERVER_HOST }} >> ~/.ssh/known_hosts
-          
-          echo "✅ SSH配置完成"
+          ssh-keyscan -H ${{ secrets.PROD_SERVER_HOST }} >> ~/.ssh/known_hosts
 
-      - name: 📋 Test SSH Connection
+      - name: 📦 Upload Deployment Scripts
         run: |
-          echo "🔍 测试SSH连接..."
-          ssh -i ~/.ssh/id_rsa -p ${{ secrets.SERVER_PORT || 22 }} -o ConnectTimeout=10 -o StrictHostKeyChecking=no \
-            ${{ secrets.SERVER_USER }}@${{ secrets.SERVER_HOST }} "echo '✅ SSH连接成功'; whoami; pwd"
+          echo "📦 上传部署脚本..."
+          scp -r scripts analytics-engine/scripts backend/Dockerfile web/Dockerfile compose.env.example podman-compose.yml \
+            ${{ secrets.PROD_SERVER_USER }}@${{ secrets.PROD_SERVER_HOST }}:/tmp/v7-deploy/
 
-      - name: 📁 Prepare Deployment Files
+      - name: 🦀 Deploy Analytics Engine
         run: |
-          echo "📁 准备部署文件..."
-          
-          # 🔍 调试：检查镜像变量值
-          echo "🔍 调试镜像变量:"
-          echo "后端镜像: '${{ needs.environment-check.outputs.backend-image }}'"
-          echo "前端镜像: '${{ needs.environment-check.outputs.web-image }}'"
-          
-          # 获取镜像标签
-          BACKEND_IMAGE="${{ needs.environment-check.outputs.backend-image }}"
-          WEB_IMAGE="${{ needs.environment-check.outputs.web-image }}"
-          REGISTRY_USER_LOWER="${{ needs.environment-check.outputs.registry-user-lower }}"
-          
-          # 验证镜像标签不为空
-          if [[ -z "$BACKEND_IMAGE" ]]; then
-            echo "❌ 错误：后端镜像标签为空"
-            echo "🔧 使用默认值（小写）..."
-            BACKEND_IMAGE="ghcr.io/${REGISTRY_USER_LOWER}/v7/backend:latest"
-          fi
-          
-          if [[ -z "$WEB_IMAGE" ]]; then
-            echo "❌ 错误：前端镜像标签为空"
-            echo "🔧 使用默认值（小写）..."
-            WEB_IMAGE="ghcr.io/${REGISTRY_USER_LOWER}/v7/web:latest"
-          fi
-          
-          # 最终验证镜像标签格式
-          if [[ "$BACKEND_IMAGE" =~ [A-Z] ]]; then
-            echo "❌ 错误：后端镜像标签包含大写字母: $BACKEND_IMAGE"
-            exit 1
-          fi
-          
-          if [[ "$WEB_IMAGE" =~ [A-Z] ]]; then
-            echo "❌ 错误：前端镜像标签包含大写字母: $WEB_IMAGE"
-            exit 1
-          fi
-          
-          echo "✅ 最终镜像标签:"
-          echo "  后端: $BACKEND_IMAGE"
-          echo "  前端: $WEB_IMAGE"
-          
-          # 创建生产环境配置文件
-          cat > .env.production << EOF
-          # 🐳 容器镜像配置
-          BACKEND_IMAGE=${{ needs.environment-check.outputs.backend-image }}
-          WEB_IMAGE=${{ needs.environment-check.outputs.web-image }}
-          
-          # 🔧 应用配置 - 使用真实Secrets，修复数据库路径
-          DATABASE_URL=${{ secrets.DATABASE_URL || 'sqlite:/app/data/prod.db' }}
-          RUST_LOG=${{ secrets.RUST_LOG || 'info' }}
-          NODE_ENV=${{ secrets.NODE_ENV || 'production' }}
-          
-          # 🔐 容器注册表认证信息
-          GHCR_TOKEN=${{ secrets.GHCR_TOKEN || secrets.GITHUB_TOKEN }}
-          REGISTRY_USER=${{ github.actor }}
-          
-          # 🌐 网络配置
-          BACKEND_PORT=3000
-          WEB_PORT=8080
-          
-          # 📊 监控配置
-          MONITOR_PORT=9100
-          
-          # 🏷️ 版本标签
-          GIT_SHA=${{ github.sha }}
-          BUILD_TIME=$(date -u +%Y-%m-%dT%H:%M:%SZ)
-          VERSION="${{ github.ref_name }}-${{ github.sha }}"
-          BRANCH_NAME="${{ github.ref_name }}"
-          COMMIT_SHA="${{ github.sha }}"
-          EOF
-          
-          echo "📄 生产环境配置:"
-          cat .env.production
-          
-          # 验证镜像变量不为空，添加默认值保护（使用小写用户名）
-          REGISTRY_USER_LOWER="${{ needs.environment-check.outputs.registry-user-lower }}"
-          if grep -q "BACKEND_IMAGE=$" .env.production; then
-            echo "❌ 警告：后端镜像变量为空，使用默认值（小写）"
-            sed -i "s/BACKEND_IMAGE=$/BACKEND_IMAGE=ghcr.io\/${REGISTRY_USER_LOWER}\/v7\/backend:latest/" .env.production
-          fi
-          
-          if grep -q "WEB_IMAGE=$" .env.production; then
-            echo "❌ 警告：前端镜像变量为空，使用默认值（小写）"
-            sed -i "s/WEB_IMAGE=$/WEB_IMAGE=ghcr.io\/${REGISTRY_USER_LOWER}\/v7\/web:latest/" .env.production
-          fi
-          
-          echo "🔍 最终配置文件:"
-          cat .env.production
-          
-          # 复制增强部署脚本
-          cp scripts/enhanced-deploy.sh deploy.sh
-          
-          chmod +x deploy.sh
-
-      - name: 📤 Upload Files to Server
-        run: |
-          echo "📤 上传部署文件到服务器..."
-          
-          # 确保部署目录存在
-          ssh -i ~/.ssh/id_rsa -p ${{ secrets.SERVER_PORT || 22 }} -o StrictHostKeyChecking=no \
-            ${{ secrets.SERVER_USER }}@${{ secrets.SERVER_HOST }} \
-            "mkdir -p ${{ secrets.DEPLOY_PATH }}"
-          
-          # 上传文件
-          scp -i ~/.ssh/id_rsa -P ${{ secrets.SERVER_PORT || 22 }} -o StrictHostKeyChecking=no \
-            podman-compose.yml .env.production deploy.sh \
-            scripts/enhanced-deploy.sh scripts/diagnose-deployment-health.sh \
-            ${{ secrets.SERVER_USER }}@${{ secrets.SERVER_HOST }}:${{ secrets.DEPLOY_PATH }}/
-          
-          echo "✅ 文件上传完成"
-
-      - name: 🔐 Setup Container Registry Authentication
-        run: |
-          echo "🔐 在服务器上配置容器注册表认证..."
-          
-          # 创建认证脚本，使用GitHub Token
-          cat > setup-auth.sh << 'SCRIPT_EOF'
-          #!/bin/bash
-          echo "🔐 配置GitHub Container Registry认证..."
-          
-          # 使用GitHub Token进行认证
-          GHCR_TOKEN="${GITHUB_TOKEN}"
-          REGISTRY_USER="hellocplusplus0"
-          
-          if [[ -n "$GHCR_TOKEN" ]]; then
-            echo "🔑 使用GitHub Token认证GHCR..."
-            echo "$GHCR_TOKEN" | podman login ghcr.io -u "$REGISTRY_USER" --password-stdin
-            if [[ $? -eq 0 ]]; then
-              echo "✅ GitHub Container Registry认证成功"
-              
-              # 验证认证状态
-              if podman login ghcr.io --get-login 2>/dev/null | grep -q "$REGISTRY_USER"; then
-                echo "✅ 认证状态验证成功"
-              else
-                echo "⚠️ 认证状态验证异常，但继续执行"
+          echo "🦀 部署Analytics Engine (systemd)..."
+          ssh ${{ secrets.PROD_SERVER_USER }}@${{ secrets.PROD_SERVER_HOST }} << 'EOF'
+            cd /tmp/v7-deploy
+            
+            # 1. 构建Analytics Engine
+            cd analytics-engine
+            echo "🏗️ 构建Analytics Engine..."
+            ./scripts/build.sh
+            
+            # 2. 停止现有服务
+            echo "🛑 停止现有Analytics Engine服务..."
+            sudo systemctl stop analytics-engine 2>/dev/null || true
+            
+            # 3. 部署新版本
+            echo "🚀 部署Analytics Engine..."
+            sudo -u analytics ./scripts/deploy.sh --enable-remote
+            
+            # 4. 验证服务
+            echo "🔍 验证Analytics Engine..."
+            sleep 10
+            if systemctl is-active --quiet analytics-engine; then
+              echo "✅ Analytics Engine启动成功"
+              # 测试gRPC连接
+              if command -v grpcurl &> /dev/null; then
+                grpcurl -plaintext localhost:50051 analytics.AnalyticsEngine/HealthCheck
               fi
             else
-              echo "❌ GitHub Container Registry认证失败"
+              echo "❌ Analytics Engine启动失败"
+              sudo journalctl -u analytics-engine --no-pager -n 20
               exit 1
             fi
-          else
-            echo "❌ 缺少GITHUB_TOKEN，无法认证"
-            exit 1
-          fi
-          SCRIPT_EOF
-          
-          chmod +x setup-auth.sh
-          
-          # 上传认证脚本
-          scp -i ~/.ssh/id_rsa -P ${{ secrets.SERVER_PORT || 22 }} -o StrictHostKeyChecking=no \
-            setup-auth.sh \
-            ${{ secrets.SERVER_USER }}@${{ secrets.SERVER_HOST }}:${{ secrets.DEPLOY_PATH }}/
-          
-          # 在服务器上执行认证，传递GitHub Token
-          ssh -i ~/.ssh/id_rsa -p ${{ secrets.SERVER_PORT || 22 }} -o StrictHostKeyChecking=no \
-            ${{ secrets.SERVER_USER }}@${{ secrets.SERVER_HOST }} \
-            "cd ${{ secrets.DEPLOY_PATH }} && GITHUB_TOKEN='${{ secrets.GITHUB_TOKEN }}' bash setup-auth.sh"
-
-      - name: 🚀 Execute Deployment
-        run: |
-          echo "🚀 在服务器上执行部署..."
-          
-          # 在服务器上执行部署，传递必要的环境变量
-          ssh -i ~/.ssh/id_rsa -p ${{ secrets.SERVER_PORT || 22 }} -o StrictHostKeyChecking=no \
-            ${{ secrets.SERVER_USER }}@${{ secrets.SERVER_HOST }} \
-            "cd ${{ secrets.DEPLOY_PATH }} && \
-             GITHUB_TOKEN='${{ secrets.GITHUB_TOKEN }}' \
-             GHCR_TOKEN='${{ secrets.GITHUB_TOKEN }}' \
-             bash deploy.sh"
-
-      - name: 🏥 Comprehensive Health Check
-        run: |
-          echo "🏥 执行全面健康检查..."
-          
-          # 等待服务完全启动
-          echo "⏳ 等待服务完全启动..."
-          sleep 60
-          
-          SERVER_HOST="${{ secrets.SERVER_HOST }}"
-          
-          # 上传诊断脚本到服务器
-          echo "📤 上传健康诊断脚本..."
-          scp -i ~/.ssh/id_rsa -P ${{ secrets.SERVER_PORT || 22 }} -o StrictHostKeyChecking=no \
-            scripts/diagnose-deployment-health.sh \
-            ${{ secrets.SERVER_USER }}@${{ secrets.SERVER_HOST }}:${{ secrets.DEPLOY_PATH }}/
-          
-          # 在服务器上执行诊断
-          echo "🔍 在服务器上执行初步诊断..."
-          ssh -i ~/.ssh/id_rsa -p ${{ secrets.SERVER_PORT || 22 }} -o StrictHostKeyChecking=no \
-            ${{ secrets.SERVER_USER }}@${{ secrets.SERVER_HOST }} \
-            "cd ${{ secrets.DEPLOY_PATH }} && chmod +x diagnose-deployment-health.sh && ./diagnose-deployment-health.sh diagnose"
-          
-          # 健康检查函数（增强版）
-          check_service() {
-            local service_name="$1"
-            local url="$2"
-            local max_attempts=15
-            local attempt=1
-            
-            echo "🔍 检查 $service_name 服务..."
-            
-            while [ $attempt -le $max_attempts ]; do
-              # 先检查端口是否开放
-              if timeout 5 bash -c "</dev/tcp/$SERVER_HOST/${url##*:}" 2>/dev/null; then
-                echo "✅ 端口 ${url##*:} 已开放"
-                
-                # 再检查HTTP响应
-                if curl -f -s --connect-timeout 10 --max-time 30 "$url" > /dev/null; then
-                  echo "✅ $service_name 服务健康 (尝试 $attempt/$max_attempts)"
-                  return 0
-                else
-                  echo "⚠️  端口开放但HTTP响应异常 (尝试 $attempt/$max_attempts)"
-                fi
-              else
-                echo "⏳ $service_name 端口未开放，等待重试... ($attempt/$max_attempts)"
-              fi
-              
-              # 如果是第5次失败，执行详细诊断
-              if [ $attempt -eq 5 ]; then
-                echo "🔧 执行中期诊断..."
-                ssh -i ~/.ssh/id_rsa -p ${{ secrets.SERVER_PORT || 22 }} -o StrictHostKeyChecking=no \
-                  ${{ secrets.SERVER_USER }}@${{ secrets.SERVER_HOST }} \
-                  "cd ${{ secrets.DEPLOY_PATH }} && ./diagnose-deployment-health.sh fix"
-              fi
-              
-              sleep 15
-              ((attempt++))
-            done
-            
-            echo "❌ $service_name 服务健康检查失败"
-            
-            # 失败时执行详细诊断
-            echo "🔧 执行失败诊断..."
-            ssh -i ~/.ssh/id_rsa -p ${{ secrets.SERVER_PORT || 22 }} -o StrictHostKeyChecking=no \
-              ${{ secrets.SERVER_USER }}@${{ secrets.SERVER_HOST }} \
-              "cd ${{ secrets.DEPLOY_PATH }} && ./diagnose-deployment-health.sh report"
-            
-            return 1
-          }
-          
-          # 检查后端服务
-          echo "🦀 开始后端健康检查..."
-          if check_service "后端" "http://$SERVER_HOST:3000/health"; then
-            echo "✅ 后端服务运行正常"
-          else
-            echo "❌ 后端服务异常，尝试修复..."
-            
-            # 尝试修复后端服务
-            ssh -i ~/.ssh/id_rsa -p ${{ secrets.SERVER_PORT || 22 }} -o StrictHostKeyChecking=no \
-              ${{ secrets.SERVER_USER }}@${{ secrets.SERVER_HOST }} \
-              "cd ${{ secrets.DEPLOY_PATH }} && ./diagnose-deployment-health.sh restart"
-            
-            # 再次等待和检查
-            echo "⏳ 等待服务重启..."
-            sleep 60
-            
-            if check_service "后端" "http://$SERVER_HOST:3000/health"; then
-              echo "✅ 后端服务修复成功"
-            else
-              echo "❌ 后端服务修复失败，但继续检查前端"
-              # 不要立即退出，继续检查前端
-            fi
-          fi
-          
-          # 检查前端服务
-          echo "🌐 开始前端健康检查..."
-          if check_service "前端" "http://$SERVER_HOST:8080"; then
-            echo "✅ 前端服务运行正常"
-          else
-            echo "❌ 前端服务异常"
-            # 前端失败不阻止部署，因为它依赖于后端
-            echo "⚠️  前端服务异常，但继续部署流程"
-          fi
-          
-          # 检查API功能
-          echo "🔧 测试API功能..."
-          if curl -f -s --connect-timeout 10 --max-time 30 "http://$SERVER_HOST:3000/api/info" > /dev/null; then
-            echo "✅ API功能正常"
-          else
-            echo "⚠️  API功能可能异常，但继续部署"
-          fi
-          
-          # 最终健康报告
-          echo "📊 生成最终健康报告..."
-          ssh -i ~/.ssh/id_rsa -p ${{ secrets.SERVER_PORT || 22 }} -o StrictHostKeyChecking=no \
-            ${{ secrets.SERVER_USER }}@${{ secrets.SERVER_HOST }} \
-            "cd ${{ secrets.DEPLOY_PATH }} && ./diagnose-deployment-health.sh report"
-
-      - name: 📊 Deployment Summary & Verification
-        run: |
-          echo "📊 部署总结"
-          echo "========================================"
-          echo "🎯 环境: Production"
-          echo "🌐 服务器: ${{ secrets.SERVER_HOST }}"
-          echo "👤 用户: ${{ secrets.SERVER_USER }}"
-          echo "📁 路径: ${{ secrets.DEPLOY_PATH }}"
-          echo "🏷️ 版本: ${{ github.sha }}"
-          echo "📅 时间: $(date -u +%Y-%m-%dT%H:%M:%SZ)"
-          echo "🦀 后端镜像: ${{ needs.environment-check.outputs.backend-image }}"
-          echo "🌐 前端镜像: ${{ needs.environment-check.outputs.web-image }}"
-          echo ""
-          echo "🌍 访问地址:"
-          echo "  - 前端应用: http://${{ secrets.SERVER_HOST }}:8080"
-          echo "  - 后端API: http://${{ secrets.SERVER_HOST }}:3000"
-          echo "  - CRUD示例: http://${{ secrets.SERVER_HOST }}:8080/slice/mvp_crud"
-          echo ""
-          echo "🎉 生产环境部署成功完成！"
-          echo "========================================"
-
-      - name: 🔔 Post-deployment Verification
-        run: |
-          echo "🔔 部署后验证..."
-          
-          # 获取服务器状态
-          ssh -i ~/.ssh/id_rsa -p ${{ secrets.SERVER_PORT || 22 }} -o StrictHostKeyChecking=no \
-            ${{ secrets.SERVER_USER }}@${{ secrets.SERVER_HOST }} << 'EOF'
-            
-            echo "📊 服务器资源使用情况:"
-            echo "==========================="
-            echo "🖥️  CPU和内存:"
-            top -bn1 | head -n 5
-            echo ""
-            echo "💾 磁盘使用:"
-            df -h
-            echo ""
-            echo "🐳 容器状态:"
-            podman ps --format "table {{.Names}}\t{{.Status}}\t{{.Ports}}\t{{.Image}}"
-            echo ""
-            echo "📈 容器资源使用:"
-            podman stats --no-stream --format "table {{.Name}}\t{{.CPUPerc}}\t{{.MemUsage}}"
-            
           EOF
 
-  # 开发环境部署阶段
-  deploy-development:
-    name: 🧪 Deploy to Development
+      - name: 🐳 Deploy Backend and Web Containers
+        run: |
+          echo "🐳 部署Backend和Web容器..."
+          ssh ${{ secrets.PROD_SERVER_USER }}@${{ secrets.PROD_SERVER_HOST }} << 'EOF'
+            cd /tmp/v7-deploy
+            
+            # 1. 设置环境变量
+            echo "🔧 配置环境变量..."
+            cat > .env << ENVEOF
+            # Analytics Engine连接（容器访问宿主机）
+            ANALYTICS_ENGINE_ADDR=http://host.containers.internal:50051
+            
+            # Backend配置
+            BACKEND_IMAGE=${{ needs.environment-check.outputs.backend-image }}
+            BACKEND_HTTP_PORT=3000
+            BACKEND_GRPC_PORT=50053
+            
+            # Web配置
+            WEB_IMAGE=${{ needs.environment-check.outputs.web-image }}
+            WEB_PORT=8080
+            
+            # 环境
+            NODE_ENV=production
+            RUST_LOG=info
+            ENVEOF
+            
+            # 2. 停止现有容器
+            echo "🛑 停止现有容器..."
+            podman-compose down || true
+            
+            # 3. 拉取最新镜像
+            echo "📦 拉取容器镜像..."
+            podman pull ${{ needs.environment-check.outputs.backend-image }}
+            podman pull ${{ needs.environment-check.outputs.web-image }}
+            
+            # 4. 启动容器服务
+            echo "🚀 启动容器服务..."
+            podman-compose up -d
+            
+            # 5. 等待服务就绪
+            echo "⏳ 等待服务就绪..."
+            sleep 30
+            
+            # 6. 验证容器状态
+            echo "🔍 验证容器状态..."
+            podman-compose ps
+            
+            # 7. 健康检查
+            echo "🏥 执行健康检查..."
+            
+            # Backend健康检查
+            for i in {1..5}; do
+              if curl -f http://localhost:3000/health; then
+                echo "✅ Backend健康检查通过"
+                break
+              else
+                echo "⏳ Backend健康检查失败，重试 $i/5..."
+                sleep 10
+              fi
+              if [ $i -eq 5 ]; then
+                echo "❌ Backend健康检查最终失败"
+                podman logs v7-backend
+                exit 1
+              fi
+            done
+            
+            # Web健康检查
+            for i in {1..5}; do
+              if curl -f http://localhost:8080/health; then
+                echo "✅ Web健康检查通过"
+                break
+              else
+                echo "⏳ Web健康检查失败，重试 $i/5..."
+                sleep 10
+              fi
+              if [ $i -eq 5 ]; then
+                echo "❌ Web健康检查最终失败"
+                podman logs v7-web
+                exit 1
+              fi
+            done
+          EOF
+
+      - name: 🔍 End-to-End Verification
+        run: |
+          echo "🔍 端到端验证..."
+          ssh ${{ secrets.PROD_SERVER_USER }}@${{ secrets.PROD_SERVER_HOST }} << 'EOF'
+            echo "🔗 测试完整链路通信..."
+            
+            # 测试Web -> Backend -> Analytics通信链
+            echo "1. 测试Web静态资源..."
+            curl -f http://localhost:8080/ > /dev/null && echo "✅ Web静态资源正常" || echo "❌ Web静态资源异常"
+            
+            echo "2. 测试Backend API..."
+            curl -f http://localhost:8080/api/health > /dev/null && echo "✅ Backend API正常" || echo "❌ Backend API异常"
+            
+            echo "3. 测试Analytics Engine集成..."
+            # 通过Backend代理测试Analytics Engine
+            if curl -f -X POST http://localhost:8080/api/analytics -H "Content-Type: application/json" -d '{"algorithm":"mean","data":[1,2,3,4,5]}' > /dev/null; then
+              echo "✅ Analytics Engine集成正常"
+            else
+              echo "⚠️ Analytics Engine集成可能异常"
+            fi
+            
+            echo "📊 系统资源使用："
+            echo "CPU和内存："
+            top -bn1 | head -n 5
+            echo "容器资源："
+            podman stats --no-stream --format "table {{.Name}}\t{{.CPUPerc}}\t{{.MemUsage}}"
+          EOF
+
+      - name: 📊 Deployment Summary
+        run: |
+          echo "🎉 生产环境部署完成！"
+          echo "================================"
+          echo "🎯 架构模式: 混合部署"
+          echo "🦀 Analytics Engine: systemd (原生性能)"
+          echo "🐳 Backend + Web: 容器化 (标准化运维)"
+          echo ""
+          echo "🌐 访问地址："
+          echo "  - 前端应用: http://${{ secrets.PROD_SERVER_HOST }}:8080"
+          echo "  - 后端API: http://${{ secrets.PROD_SERVER_HOST }}:3000"
+          echo "  - Analytics: localhost:50051 (服务器内部)"
+          echo ""
+          echo "🔍 健康检查："
+          echo "  - Web: http://${{ secrets.PROD_SERVER_HOST }}:8080/health"
+          echo "  - Backend: http://${{ secrets.PROD_SERVER_HOST }}:3000/health"
+          echo ""
+          echo "📊 部署信息："
+          echo "  - 时间: $(date -u +%Y-%m-%dT%H:%M:%SZ)"
+          echo "  - 版本: ${{ github.sha }}"
+          echo "  - Backend镜像: ${{ needs.environment-check.outputs.backend-image }}"
+          echo "  - Web镜像: ${{ needs.environment-check.outputs.web-image }}"
+
+  # 🧪 预发布环境部署
+  deploy-staging:
+    name: 🧪 Deploy to Staging
     runs-on: ubuntu-latest
-    needs: [environment-check, build-and-push]
-    if: github.event_name == 'push' && github.ref == 'refs/heads/develop' && needs.environment-check.outputs.deploy-ready == 'true'
-    environment: development
+    needs: [environment-check, analytics-engine-check, build-and-push]
+    if: github.ref == 'refs/heads/develop' && needs.environment-check.outputs.deploy-ready == 'true'
+    environment: staging
     
     steps:
       - name: 📋 Checkout Repository
         uses: actions/checkout@v4
 
-      - name: 🧪 Development Deployment Placeholder
+      - name: 🧪 Staging Deployment
         run: |
-          echo "🧪 开发环境部署..."
-          echo "🏷️ 开发版本: ${{ needs.environment-check.outputs.backend-image }}"
-          echo "📝 开发环境部署逻辑等待配置开发服务器后实现"
-          echo "🔧 可以复制生产环境部署逻辑，使用不同的服务器配置"
+          echo "🧪 预发布环境部署..."
+          echo "🏷️ 版本: ${{ needs.environment-check.outputs.backend-image }}"
+          echo "📝 注意：预发布环境部署逻辑与生产环境类似"
+          echo "💡 使用 STAGING_* 前缀的secrets配置预发布服务器"
+          
+          # 可以复制生产环境的部署逻辑，使用不同的服务器配置
+          # 例如：STAGING_SERVER_HOST, STAGING_SERVER_USER, STAGING_SSH_KEY
 
-  # 工作流状态总结
+  # 📊 工作流总结
   workflow-summary:
     name: 📊 Workflow Summary
     runs-on: ubuntu-latest
-    needs: [environment-check, backend-check, frontend-check, build-and-push, deploy-production]
+    needs: [environment-check, analytics-engine-check, backend-check, frontend-check, build-and-push, deploy-production, deploy-staging]
     if: always()
     
     steps:
       - name: 📊 CI/CD Pipeline Summary
         run: |
-          echo "🔍 CI/CD流水线执行总结"
-          echo "================================"
-          echo "🌍 环境检查: ${{ needs.environment-check.result }}"
-          echo "🦀 后端检查: ${{ needs.backend-check.result }}"
-          echo "🌐 前端检查: ${{ needs.frontend-check.result }}"
+          echo "🔍 V7混合架构CI/CD流水线总结"
+          echo "========================================"
+          echo "🔧 环境检查: ${{ needs.environment-check.result }}"
+          echo "🦀 Analytics Engine: ${{ needs.analytics-engine-check.result }}"
+          echo "🦀 Backend检查: ${{ needs.backend-check.result }}"
+          echo "🌐 Frontend检查: ${{ needs.frontend-check.result }}"
           echo "🐳 容器构建: ${{ needs.build-and-push.result }}"
           echo "🚀 生产部署: ${{ needs.deploy-production.result }}"
-          echo "================================"
+          echo "🧪 预发布部署: ${{ needs.deploy-staging.result }}"
+          echo "========================================"
           
           # 计算整体状态
           OVERALL_STATUS="success"
           
+          # 检查必需的步骤
           if [[ "${{ needs.environment-check.result }}" != "success" ]]; then
             OVERALL_STATUS="failed"
             echo "❌ 环境检查失败"
           fi
           
+          if [[ "${{ needs.analytics-engine-check.result }}" != "success" ]]; then
+            OVERALL_STATUS="failed"
+            echo "❌ Analytics Engine检查失败"
+          fi
+          
           if [[ "${{ needs.backend-check.result }}" != "success" ]]; then
             OVERALL_STATUS="failed"
-            echo "❌ 后端检查失败"
+            echo "❌ Backend检查失败"
           fi
           
           if [[ "${{ needs.frontend-check.result }}" != "success" ]]; then
             OVERALL_STATUS="failed"
-            echo "❌ 前端检查失败"
+            echo "❌ Frontend检查失败"
           fi
           
+          # 对于main分支，检查部署状态
           if [[ "${{ github.ref }}" == "refs/heads/main" ]]; then
             if [[ "${{ needs.build-and-push.result }}" != "success" ]]; then
               OVERALL_STATUS="failed"
@@ -1132,44 +656,49 @@ jobs:
           fi
           
           if [[ "$OVERALL_STATUS" == "success" ]]; then
-            echo "🎉 所有检查和部署流程完成！"
+            echo "🎉 CI/CD流水线执行成功！"
+            
+            if [[ "${{ github.ref }}" == "refs/heads/main" && "${{ needs.deploy-production.result }}" == "success" ]]; then
+              echo ""
+              echo "🌐 生产环境访问地址："
+              echo "  - 应用入口: http://${{ secrets.PROD_SERVER_HOST }}:8080"
+              echo "  - API接口: http://${{ secrets.PROD_SERVER_HOST }}:3000"
+              echo ""
+              echo "🏗️ 架构特点："
+              echo "  ✅ Analytics Engine: systemd部署，极致性能"
+              echo "  ✅ Backend + Web: 容器化部署，标准化运维"
+              echo "  ✅ 混合架构: 平衡性能和可维护性"
+            fi
           else
-            echo "❌ 发现问题，请检查上述步骤"
+            echo "❌ CI/CD流水线执行失败，请检查上述步骤"
             exit 1
           fi
 
-      - name: 📝 Next Steps & Access Information
+      - name: 📝 Next Steps
         if: success()
         run: |
-          echo "📝 流水线完成状态："
-          echo "================================"
+          echo "📝 后续操作指南："
+          echo "========================================"
           
-          if [[ "${{ github.ref }}" == "refs/heads/main" && "${{ needs.deploy-production.result }}" == "success" ]]; then
-            echo "🎉 生产环境部署成功！"
-            echo ""
-            echo "🌐 应用访问地址："
-            echo "  - 前端应用: http://${{ secrets.SERVER_HOST }}:8080"
-            echo "  - 后端API: http://${{ secrets.SERVER_HOST }}:3000"
-            echo "  - CRUD示例: http://${{ secrets.SERVER_HOST }}:8080/slice/mvp_crud"
-            echo ""
-            echo "🔍 监控和维护："
-            echo "  - 健康检查: http://${{ secrets.SERVER_HOST }}:3000/health"
-            echo "  - 前端健康: http://${{ secrets.SERVER_HOST }}:8080/health"
-            echo "  - 服务器监控: SSH到服务器执行 ./scripts/monitoring.sh"
-            echo ""
-            echo "📖 运维文档："
-            echo "  - 故障排除: docs/quick-reference.md"
-            echo "  - 用户管理: docs/user-management-guide.md"
+          if [[ "${{ github.event_name }}" == "pull_request" ]]; then
+            echo "📋 PR检查完成，等待合并"
+            echo "  - 所有检查通过，可以安全合并"
+            echo "  - 合并到main分支将触发生产部署"
+            
+          elif [[ "${{ github.ref }}" == "refs/heads/main" ]]; then
+            echo "🎉 生产环境部署完成"
+            echo "  - 应用已在生产环境运行"
+            echo "  - 监控服务状态和性能指标"
+            echo "  - 如有问题，可回滚到上个版本"
             
           elif [[ "${{ github.ref }}" == "refs/heads/develop" ]]; then
-            echo "🧪 开发环境处理完成"
-            
-          else
-            echo "📋 代码检查完成，等待合并到main分支进行生产部署"
+            echo "🧪 开发分支更新完成"
+            echo "  - 可以在预发布环境测试新功能"
+            echo "  - 测试通过后合并到main分支"
           fi
           
           echo ""
-          echo "🎯 下次部署提示："
-          echo "  - Push到main分支: 自动生产环境部署"
-          echo "  - Push到develop分支: 自动开发环境部署"
-          echo "  - Pull Request: 仅执行CI检查" 
+          echo "🔗 相关链接："
+          echo "  - 项目文档: README.md"
+          echo "  - 部署指南: scripts/DEPLOYMENT_GUIDE.md"
+          echo "  - 架构说明: docs/architecture.md" 

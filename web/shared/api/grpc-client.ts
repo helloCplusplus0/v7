@@ -89,11 +89,10 @@ export class UnifiedGrpcClient {
     // 🔧 智能环境检测和配置
     const isDev = import.meta.env.DEV;
     
-    // 开发环境：使用Vite代理，避免CORS问题
-    // 生产环境：直连后端服务 (192.168.31.84:50053)
-    const defaultBaseUrl = isDev 
-      ? `${window.location.protocol}//${window.location.host}`  // 开发环境使用当前host的Vite代理
-      : 'http://192.168.31.84:50053';  // 生产环境直连
+    // 🎯 统一代理模式：开发和生产环境都通过当前域名的代理访问Backend
+    // 开发环境：localhost:5173 通过Vite代理 → Backend:50053
+    // 生产环境：域名:8080 通过nginx代理 → Backend:3000/50053
+    const defaultBaseUrl = `${window.location.protocol}//${window.location.host}`;
     
     this.config = {
       baseUrl: config.baseUrl || defaultBaseUrl,
@@ -107,7 +106,10 @@ export class UnifiedGrpcClient {
       console.log(`🔧 [gRPC] 初始化客户端:`, {
         environment: isDev ? 'development' : 'production',
         baseUrl: this.config.baseUrl,
-        mode: isDev ? 'vite-proxy' : 'direct-connection',
+        mode: 'unified-proxy-mode',
+        description: isDev 
+          ? 'Using Vite proxy to Backend:50053' 
+          : 'Using nginx proxy to Backend:3000/50053',
         timeout: this.config.timeout,
         currentHost: window.location.host,
         currentProtocol: window.location.protocol

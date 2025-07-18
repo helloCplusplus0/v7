@@ -42,50 +42,19 @@
 ```
 analytics-engine/
 ├── 📚 docs/                     # 项目文档
-│   ├── analytics-engine-structure.md
-│   └── implementation-examples.md
 ├── 🦀 src/                      # Rust源代码
 │   ├── api/                     # gRPC API层
-│   │   ├── grpc_service.rs      # gRPC服务实现
-│   │   ├── types.rs             # 统一数据类型
-│   │   └── mod.rs
 │   ├── core/                    # 核心算法模块
-│   │   ├── stats.rs             # 统计分析（Rust高性能实现）
-│   │   ├── dispatcher.rs        # 智能分发器
-│   │   └── mod.rs
 │   ├── python_bridge/           # Python桥接
-│   │   ├── dispatcher.rs        # Python分发器
-│   │   └── mod.rs
-│   ├── proto/                   # Protocol Buffers定义
-│   │   └── analytics.proto      # gRPC服务定义
-│   ├── lib.rs                   # 库入口
-│   └── main.rs                  # 服务器主程序
+│   └── proto/                   # Protocol Buffers定义
 ├── 🐍 python/                   # Python算法模块
 │   └── analytics_engine/        # Python包
-│       ├── algorithms/          # 高级算法实现
-│       │   ├── __init__.py      # 算法分发器
-│       │   ├── ml_advanced.py   # 机器学习算法
-│       │   ├── nlp.py           # 自然语言处理
-│       │   └── time_series.py   # 时间序列分析
-│       └── __init__.py          # 包初始化
 ├── 🧪 tests/                    # 测试目录
-│   ├── rust/                    # Rust测试
-│   └── python/                  # Python测试
-├── 🛠️ scripts/                  # 构建脚本
-│   ├── build.sh                 # 全自动构建脚本
-│   └── run.sh                   # 服务启动脚本
-├── ⚙️ 配置文件
-│   ├── Cargo.toml               # Rust项目配置
-│   ├── pyproject.toml           # Python项目配置
-│   ├── build.rs                 # 构建脚本
-│   ├── Dockerfile               # 容器化配置
-│   └── env.example              # 环境变量示例
-└── 📖 README.md                 # 项目文档
+├── 🛠️ scripts/                  # 构建和部署脚本
+└── ⚙️ 配置文件               # Cargo.toml, pyproject.toml等
 ```
 
-## 🏢 **基础设施功能**
-
-### 🔧 **核心组件**
+## 🔧 **核心组件**
 
 | 组件 | 功能描述 | 技术实现 |
 |------|----------|----------|
@@ -95,42 +64,7 @@ analytics-engine/
 | **Python桥接** | PyO3无缝Python集成 | `src/python_bridge/` |
 | **算法库** | 丰富的ML/NLP算法 | `python/analytics_engine/algorithms/` |
 
-### 📊 **数据流处理**
-
-```mermaid
-sequenceDiagram
-    participant C as Client
-    participant G as gRPC Server
-    participant D as Dispatcher
-    participant R as Rust Engine
-    participant P as Python Engine
-
-    C->>G: AnalysisRequest
-    G->>D: route_algorithm()
-    
-    alt Rust capable
-        D->>R: execute_rust()
-        R-->>D: Result + Metadata
-    else Python required
-        D->>P: execute_python()
-        P-->>D: Result + Metadata
-    end
-    
-    D-->>G: AnalysisResponse
-    G-->>C: Result + Performance Stats
-```
-
-### 🛡️ **安全和监控**
-
-| 特性 | 实现 | 配置 |
-|------|------|------|
-| **请求验证** | gRPC拦截器 | `src/api/grpc_service.rs` |
-| **速率限制** | Token bucket | 环境变量配置 |
-| **健康检查** | gRPC HealthCheck | `/health` endpoint |
-| **性能监控** | 内置metrics | `ANALYTICS_ENABLE_METRICS=true` |
-| **错误追踪** | 结构化日志 | `RUST_LOG=info` |
-
-### ⚡ **性能优化**
+## ⚡ **性能优势**
 
 | 优化项 | Rust实现 | Python实现 | 性能提升 |
 |--------|----------|-------------|----------|
@@ -138,14 +72,6 @@ sequenceDiagram
 | **零拷贝数据** | ✅ 引用传递 | ❌ 序列化开销 | 3-5x |
 | **并行计算** | ✅ Rayon | ✅ joblib | 2-4x |
 | **内存管理** | ✅ 栈分配 | ❌ GC开销 | 2-3x |
-
-### 🔌 **通信机制**
-
-| 模式 | 延迟 | 吞吐量 | 使用场景 |
-|------|------|--------|----------|
-| **Unix Socket** | 0.1ms | 2GB/s | 同服务器部署 |
-| **gRPC TCP** | 0.5ms | 800MB/s | 跨服务器通信 |
-| **gRPC Stream** | 0.3ms | 1.2GB/s | 批量数据处理 |
 
 ## 🚀 **快速开始**
 
@@ -157,47 +83,29 @@ curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh
 
 # 安装Python 3.9+
 sudo apt-get install python3 python3-pip
-
-# 安装构建工具
-pip install maturin
 ```
 
-### 2. 构建项目
+### 2. 开发模式
 
 ```bash
-# 克隆项目
 cd analytics-engine
 
-# 一键构建
-./scripts/build.sh
+# 一键构建和运行
+./scripts/build.sh && ./scripts/run.sh
 
-# 可选：指定构建模式
-BUILD_MODE=debug ./scripts/build.sh
-FEATURES=rust-only ./scripts/build.sh  # 仅Rust模式
+# 验证服务
+curl http://localhost:50051/health
 ```
 
-### 3. 启动服务
+### 3. 生产部署
+
+**完整的部署指南请参考：[scripts/DEPLOYMENT_GUIDE.md](scripts/DEPLOYMENT_GUIDE.md)**
 
 ```bash
-# 启动服务器
-./scripts/run.sh
-
-# 可选：自定义配置
-ANALYTICS_LISTEN_ADDR=0.0.0.0:50051 ./scripts/run.sh
-ANALYTICS_SOCKET_PATH=/tmp/analytics.sock ./scripts/run.sh  # Unix Socket模式
-```
-
-### 4. 容器化部署
-
-```bash
-# 使用podman-compose
-cd .. # 回到项目根目录
-podman-compose up analytics-engine -d
-
-# 单独构建镜像
-cd analytics-engine
-podman build -t v7-analytics-engine .
-podman run -p 50051:50051 v7-analytics-engine
+# 快速生产部署
+sudo ./scripts/setup-user.sh    # 创建专用用户
+./scripts/build.sh              # 构建二进制
+sudo -u analytics ./scripts/deploy.sh  # 部署为systemd服务
 ```
 
 ## 📊 **支持的算法**
@@ -304,28 +212,6 @@ RUST_BACKTRACE=1
 ANALYTICS_ENABLE_METRICS=true
 ```
 
-### 配置文件
-
-```toml
-# config/analytics.toml
-[server]
-listen_addr = "0.0.0.0:50051"
-socket_path = "/tmp/analytics.sock"
-
-[features]
-python_bridge = true
-rust_only = false
-
-[performance]
-max_concurrent_requests = 100
-request_timeout_ms = 30000
-enable_metrics = true
-
-[python]
-module_path = "./python"
-max_workers = 4
-```
-
 ## 🔧 **开发指南**
 
 ### 添加Rust算法
@@ -407,114 +293,7 @@ def my_python_algorithm(data: List[float], params: Dict[str, str]) -> Dict[str, 
 | gRPC TCP | 0.5ms | 800MB/s | 跨服务器部署 |
 | HTTP REST | 2.3ms | 300MB/s | 传统方式对比 |
 
-## 🚨 **故障排除**
-
-### 常见问题
-
-1. **Python模块未找到**
-   ```bash
-   export PYTHONPATH="${PWD}/python:${PYTHONPATH}"
-   ```
-
-2. **gRPC连接失败**
-   ```bash
-   # 检查端口是否被占用
-   netstat -tlnp | grep 50051
-   
-   # 检查防火墙设置
-   sudo ufw allow 50051
-   ```
-
-3. **构建失败**
-   ```bash
-   # 清理构建缓存
-   cargo clean
-   
-   # 更新依赖
-   cargo update
-   ```
-
-4. **性能问题**
-   ```bash
-   # 启用性能分析
-   RUST_LOG=debug ./scripts/run.sh
-   
-   # 检查资源使用
-   top -p $(pgrep analytics-server)
-   ```
-
-## 🔄 **完整开发工作流**
-
-### Analytics Engine ↔ Backend 集成工作流
-
-```mermaid
-graph TB
-    A[Backend FMOD v7] --> B[gRPC Client]
-    B --> C[Analytics Engine]
-    C --> D{智能分发器}
-    D --> E[Rust算法]
-    D --> F[Python算法]
-    E --> G[结果返回]
-    F --> G
-    G --> B
-    B --> A
-```
-
-### 1. **Backend端调用** (backend/src/slices/analytics/)
-
-```rust
-// 📍 backend/src/slices/analytics/functions.rs
-use analytics_engine_client::AnalyticsClient;
-
-pub async fn statistical_analysis<A>(
-    _analytics_service: A,
-    data: Vec<f64>,
-    algorithm: String
-) -> Result<serde_json::Value>
-where A: AnalyticsService {
-    // 连接Analytics Engine
-    let mut client = AnalyticsClient::connect("http://localhost:50051").await?;
-    
-    // 发送分析请求
-    let response = client.analyze(AnalysisRequest {
-        algorithm,
-        data,
-        options: Some(AnalysisOptions {
-            prefer_rust: true,
-            allow_python: true,
-            ..Default::default()
-        }),
-    }).await?;
-    
-    // 返回结果
-    Ok(serde_json::from_str(&response.result_json)?)
-}
-```
-
-### 2. **Analytics Engine开发流程**
-
-#### 🔧 添加新算法
-
-```bash
-# 步骤1：尝试Rust实现
-cd analytics-engine
-vim src/core/stats.rs  # 添加Rust算法
-
-# 步骤2：如果Rust复杂，使用Python
-vim python/analytics_engine/algorithms/ml_advanced.py  # 添加Python算法
-
-# 步骤3：更新分发器
-vim src/core/dispatcher.rs  # 添加算法路由
-
-# 步骤4：构建和测试
-./scripts/build.sh
-./scripts/test.sh
-
-# 步骤5：启动服务测试
-./scripts/run.sh
-```
-
-#### 🧪 **测试流程**
+## 🧪 **测试**
 
 ```bash
 # 单元测试
@@ -526,88 +305,6 @@ python -m pytest tests/      # Python测试
 
 # 性能基准测试
 cargo bench
-```
-
-### 3. **部署流程**
-
-#### 🐳 **容器化部署**
-
-```bash
-# 构建镜像
-podman build -t v7-analytics-engine .
-
-# 单独运行
-podman run -p 50051:50051 v7-analytics-engine
-
-# 使用podman-compose (推荐)
-cd ../  # 回到项目根目录
-podman-compose up analytics-engine -d
-```
-
-#### 🚀 **生产部署**
-
-```bash
-# 1. 环境配置
-cp env.example .env
-# 编辑.env文件设置生产参数
-
-# 2. 构建生产版本
-BUILD_MODE=release FEATURES=python-bridge ./scripts/build.sh
-
-# 3. 运行健康检查
-curl -f http://localhost:50051/health
-
-# 4. 监控日志
-journalctl -f -u analytics-engine
-```
-
-### 4. **监控和调优**
-
-#### 📊 **性能监控**
-
-```bash
-# 查看实时性能
-htop -p $(pgrep analytics-server)
-
-# gRPC连接监控
-grpcurl -plaintext localhost:50051 analytics.AnalyticsEngine/HealthCheck
-
-# 算法执行统计
-curl http://localhost:50051/metrics
-```
-
-#### 🔍 **调试工具**
-
-```bash
-# 启用调试日志
-RUST_LOG=debug ./scripts/run.sh
-
-# 性能分析
-perf record -g target/release/analytics-server
-perf report
-
-# 内存泄漏检查
-valgrind --tool=memcheck target/release/analytics-server
-```
-
-### 5. **故障恢复**
-
-#### 🚨 **常见问题解决**
-
-```bash
-# Python模块加载失败
-export PYTHONPATH="${PWD}/python:${PYTHONPATH}"
-
-# gRPC端口冲突
-sudo netstat -tlnp | grep 50051
-sudo kill -9 <PID>
-
-# 重建缓存
-cargo clean && ./scripts/build.sh
-
-# 回滚到安全版本
-git checkout HEAD~1
-./scripts/build.sh
 ```
 
 ## 🤝 **贡献指南**
@@ -639,6 +336,13 @@ git checkout HEAD~1
 - 所有公共函数需要文档注释
 - 提交消息遵循Conventional Commits
 
+## 📚 **相关文档**
+
+- **[部署指南](scripts/DEPLOYMENT_GUIDE.md)** - 完整的生产部署和运维指南
+- **[脚本说明](scripts/README.md)** - 构建和管理脚本详细说明
+- **[架构设计](docs/analytics-engine-structure.md)** - 深入的架构设计文档
+- **[实现示例](docs/implementation-examples.md)** - 算法实现示例
+
 ## 📄 **许可证**
 
 MIT License - 详见 [LICENSE](LICENSE) 文件
@@ -653,40 +357,3 @@ MIT License - 详见 [LICENSE](LICENSE) 文件
 ---
 
 **Analytics Engine** - 将Rust的性能与Python的生态完美融合 🚀 
-
-# 🐍 Rust+Python混合分析引擎 - PyO3动态链接最佳实践
-
-本项目采用Debian/python-slim基础镜像，Rust主流程+PyO3动态链接Python，兼顾极致性能、广泛算法支持与可维护性。
-
-## 构建与运行流程
-
-1. 多阶段构建，分离编译与运行，最终镜像极致精简
-2. Rust主流程极致性能，Python补足算法广泛性
-3. PyO3采用动态链接（abi3），无需静态libpython，兼容性强
-4. 支持国内apt/pip源加速，适配CI/CD与本地开发
-5. 非特权用户、健康检查、只读文件系统等最佳实践全覆盖
-
-## 性能与维护性优势
-
-- 镜像体积适中（200~300MB），拉取与部署高效
-- 运行时性能与Alpine静态编译无本质差异
-- 维护性极高，兼容PyO3官方推荐，生态支持好
-- 支持后续Python算法热更新与扩展
-
-## 构建命令
-
-```bash
-podman build -t analytics-engine:latest -f Dockerfile .
-```
-
-## 运行命令
-
-```bash
-podman run -d --name analytics-engine \
-  -p 50051:50051 \
-  -e PYTHONUNBUFFERED=1 \
-  analytics-engine:latest
-```
-
----
-如需进一步瘦身或定制优化，请参考Dockerfile内注释或联系维护者。 

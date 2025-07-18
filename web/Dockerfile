@@ -5,7 +5,7 @@
 # 📐 构建参数（参数化管理）
 ARG NODE_VERSION=18
 ARG NGINX_VERSION=1.25-alpine
-ARG WEB_PORT=3000
+ARG WEB_PORT=8080
 ARG WEB_USER=appuser
 ARG WEB_UID=1003
 ARG WEB_GID=1003
@@ -57,8 +57,8 @@ RUN test -f dist/index.html || (echo "❌ Build failed: index.html not found" &&
 # ===== 🏃 生产运行阶段 =====
 FROM nginx:${NGINX_VERSION} AS runtime
 
-# 📐 运行时参数（重新声明）
-ARG WEB_PORT=3000
+# 📐 运行时参数（重新声明，保持一致）
+ARG WEB_PORT=8080
 ARG WEB_USER=appuser
 ARG WEB_UID=1003
 ARG WEB_GID=1003
@@ -74,141 +74,59 @@ RUN apk add --no-cache \
 RUN addgroup -g ${WEB_GID} -S webgroup && \
     adduser -u ${WEB_UID} -S ${WEB_USER} -G webgroup -D
 
-# 📁 创建应用目录结构（权限优化）
-RUN mkdir -p /usr/share/nginx/html && \
-    mkdir -p /var/cache/nginx && \
-    mkdir -p /var/log/nginx && \
-    mkdir -p /tmp/nginx && \
-    chown -R ${WEB_USER}:webgroup /usr/share/nginx/html && \
-    chown -R ${WEB_USER}:webgroup /var/cache/nginx && \
-    chown -R ${WEB_USER}:webgroup /var/log/nginx && \
-    chown -R ${WEB_USER}:webgroup /tmp/nginx && \
-    chmod 755 /usr/share/nginx/html
+# 📁 一次性创建所有必要目录并设置权限（优化镜像层）
+RUN mkdir -p /usr/share/nginx/html \
+             /var/cache/nginx/client_temp \
+             /var/cache/nginx/proxy_temp \
+             /var/cache/nginx/fastcgi_temp \
+             /var/cache/nginx/uwsgi_temp \
+             /var/cache/nginx/scgi_temp \
+             /var/log/nginx \
+             /var/run \
+    && chown -R ${WEB_USER}:webgroup \
+              /usr/share/nginx/html \
+              /var/cache/nginx \
+              /var/log/nginx \
+              /var/run \
+    && chmod 755 /usr/share/nginx/html \
+                 /var/cache/nginx \
+                 /var/log/nginx \
+                 /var/run
 
 # 📦 从构建阶段复制静态文件
 COPY --from=builder --chown=${WEB_USER}:webgroup /app/dist /usr/share/nginx/html
 
-# 🔧 创建优化的nginx配置
-RUN cat > /etc/nginx/nginx.conf << 'EOF'
-user nginx;
-worker_processes auto;
-pid /tmp/nginx/nginx.pid;
+# 📦 复制nginx配置文件
+COPY --chown=${WEB_USER}:webgroup nginx.conf /etc/nginx/nginx.conf
 
-error_log /var/log/nginx/error.log warn;
-
-events {
-    worker_connections 1024;
-    use epoll;
-    multi_accept on;
-}
-
-http {
-    include /etc/nginx/mime.types;
-    default_type application/octet-stream;
-
-    # 日志格式优化
-    log_format main '$remote_addr - $remote_user [$time_local] "$request" '
-                    '$status $body_bytes_sent "$http_referer" '
-                    '"$http_user_agent" "$http_x_forwarded_for"';
-
-    access_log /var/log/nginx/access.log main;
-
-    # 性能优化
-    sendfile on;
-    tcp_nopush on;
-    tcp_nodelay on;
-    keepalive_timeout 65;
-    types_hash_max_size 2048;
-    client_max_body_size 16M;
-
-    # Gzip压缩
-    gzip on;
-    gzip_vary on;
-    gzip_min_length 1024;
-    gzip_proxied any;
-    gzip_comp_level 6;
-    gzip_types
-        text/plain
-        text/css
-        text/xml
-        text/javascript
-        application/json
-        application/javascript
-        application/xml+rss
-        application/atom+xml
-        image/svg+xml;
-
-    # 安全头
-    add_header X-Frame-Options "SAMEORIGIN" always;
-    add_header X-XSS-Protection "1; mode=block" always;
-    add_header X-Content-Type-Options "nosniff" always;
-    add_header Referrer-Policy "no-referrer-when-downgrade" always;
-    add_header Content-Security-Policy "default-src 'self' http: https: data: blob: 'unsafe-inline'" always;
-
-    server {
-        listen WEB_PORT_PLACEHOLDER;
-        server_name _;
-        root /usr/share/nginx/html;
-        index index.html;
-
-        # 静态资源缓存
-        location ~* \.(js|css|png|jpg|jpeg|gif|ico|svg|woff|woff2|ttf|eot)$ {
-            expires 1y;
-            add_header Cache-Control "public, immutable";
-            try_files $uri =404;
-        }
-
-        # SPA路由支持
-        location / {
-            try_files $uri $uri/ /index.html;
-        }
-
-        # 健康检查
-        location /health {
-            access_log off;
-            return 200 "healthy\n";
-            add_header Content-Type text/plain;
-        }
-
-        # 安全配置
-        location ~ /\. {
-            deny all;
-        }
-    }
-}
-EOF
-
-# 🔧 替换端口占位符
-RUN sed -i "s/WEB_PORT_PLACEHOLDER/${WEB_PORT}/g" /etc/nginx/nginx.conf
-
-# 🌍 设置环境变量
-ENV NGINX_PORT=${WEB_PORT}
+# 🌍 设置运行时环境变量
+ENV NODE_ENV=production \
+    PORT=${WEB_PORT} \
+    NGINX_USER=${WEB_USER}
 
 # 🔌 暴露端口
 EXPOSE ${WEB_PORT}
 
 # 📁 数据卷（日志和缓存）
-VOLUME ["/var/log/nginx", "/tmp/nginx"]
+VOLUME ["/var/log/nginx", "/var/cache/nginx"]
 
 # 👤 切换到非特权用户
 USER ${WEB_USER}:webgroup
 
-# 🏥 健康检查（轻量化）
+# 🏥 健康检查
 HEALTHCHECK --interval=30s --timeout=10s --start-period=5s --retries=3 \
-    CMD wget --no-verbose --tries=1 --spider http://localhost:${WEB_PORT}/health || exit 1
+    CMD curl -f http://localhost:${WEB_PORT}/health || exit 1
 
-# 🏷️ 镜像标签（详细元数据）
+# 🏷️ 镜像标签
 LABEL maintainer="v7-team" \
       app="v7-web" \
-      version="v7-optimized" \
+      version="v7-solidjs" \
+      description="V7 Web Frontend - SolidJS + TypeScript + Vite + nginx" \
       architecture="solidjs+typescript+vite" \
-      description="V7 Web Frontend - SolidJS + TypeScript + Vite with nginx" \
-      node.version="${NODE_VERSION}" \
-      nginx.version="${NGINX_VERSION}" \
-      optimization="multi-stage+gzip+cache+security" \
-      security="non-root+csp+xss-protection" \
-      performance="extreme+static-cache" \
-      port="${WEB_PORT}"
+      optimization="vite-build+nginx-static+multi-stage" \
+      security="non-root+minimal-deps" \
+      performance="static-assets+gzip+caching" \
+      ports.http="${WEB_PORT}"
 
 # 🚀 启动命令
 CMD ["nginx", "-g", "daemon off;"] 

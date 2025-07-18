@@ -78,6 +78,13 @@ RUN file /build/v7-backend && \
 # ===== 🏃 运行阶段 =====
 FROM alpine:${ALPINE_VERSION} AS runtime
 
+# 📐 重新声明运行时参数（多阶段构建需要）
+ARG BACKEND_PORT=3000
+ARG GRPC_PORT=50053
+ARG APP_USER=appuser
+ARG APP_UID=1002
+ARG APP_GID=1002
+
 # 📦 安装运行时依赖（最小化，移除curl）
 RUN apk add --no-cache \
     ca-certificates \
@@ -89,7 +96,7 @@ RUN addgroup -g ${APP_GID} -S appgroup && \
     adduser -u ${APP_UID} -S ${APP_USER} -G appgroup
 
 # 📁 创建应用目录（增强权限管理）
-RUN mkdir -p /app/{data,logs,config,tmp} && \
+RUN mkdir -p /app/data /app/logs /app/config /app/tmp && \
     mkdir -p /tmp/app-runtime && \
     chown -R ${APP_USER}:appgroup /app /tmp/app-runtime && \
     chmod 755 /app && \
@@ -123,7 +130,9 @@ VOLUME ["/app/data", "/app/logs", "/tmp/app-runtime"]
 # 👤 切换到非特权用户
 USER ${APP_USER}:appgroup
 
-# 🏥 健康检查（移除外部依赖，使用内建健康检查）
+# 🏥 健康检查（Docker格式，Podman OCI格式会产生警告但不影响功能）
+# 注意：Podman OCI格式不支持HEALTHCHECK，但Docker格式支持
+# 生产环境使用Docker构建，本地可用HTTP端点: curl localhost:3000/health
 HEALTHCHECK --interval=30s --timeout=10s --start-period=10s --retries=3 \
     CMD /app/backend --health-check 2>/dev/null || exit 1
 

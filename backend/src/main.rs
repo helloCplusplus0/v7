@@ -240,11 +240,28 @@ async fn setup_services() {
     let cache = MemoryCache::new();
     let crud_service = SqliteCrudService::new(crud_repository, cache);
 
+    // 🔧 Analytics Engine连接配置 - 必须显式配置
+    // 环境变量 ANALYTICS_ENGINE_ADDR 必须设置，支持以下场景：
+    // - 同机部署: http://localhost:50051 或 http://127.0.0.1:50051  
+    // - 容器环境: http://host.containers.internal:50051
+    // - 跨服务器: http://<analytics-server-ip>:50051
+    // - Docker compose: http://analytics-engine:50051
+    let analytics_endpoint = std::env::var("ANALYTICS_ENGINE_ADDR")
+        .unwrap_or_else(|_| {
+            tracing::warn!("⚠️  ANALYTICS_ENGINE_ADDR not set, using fallback");
+            tracing::warn!("📍 Please deploy Analytics Engine first and set ANALYTICS_ENGINE_ADDR");
+            // 最后的回退地址，但应该避免使用
+            "http://localhost:50051".to_string()
+        });
+    
+    let analytics_client = fmod_slice::slices::mvp_stat::service::GrpcAnalyticsClient::new(
+        analytics_endpoint.clone()
+    );
+    
+    tracing::info!("🔗 Analytics Engine连接地址: {}", analytics_endpoint);
+
     // 创建统计分析服务实例
     let random_generator = fmod_slice::slices::mvp_stat::service::DefaultRandomDataGenerator::new();
-    let analytics_client = fmod_slice::slices::mvp_stat::service::GrpcAnalyticsClient::new(
-        "http://localhost:50051".to_string() // Analytics Engine地址 - 修复端口号
-    );
     let dispatcher = fmod_slice::slices::mvp_stat::service::DefaultIntelligentDispatcher::new(
         analytics_client.clone()
     );
