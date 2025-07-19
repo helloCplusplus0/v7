@@ -6,10 +6,20 @@
 set -euo pipefail
 
 # 📋 配置参数
-SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+# 修复BASH_SOURCE变量问题 - 当通过curl管道执行时，BASH_SOURCE可能不可用
+if [[ -n "${BASH_SOURCE[0]:-}" ]]; then
+    SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+else
+    SCRIPT_DIR="$(pwd)"
+fi
+
 PROJECT_NAME="v7"
 COMPOSE_FILE="podman-compose.yml"
 ENV_FILE=".env"
+
+# 🌍 GitHub仓库配置 (修复硬编码问题)
+DEFAULT_REPO_URL="https://github.com/helloCplusplus0/v7.git"
+DEFAULT_BRANCH="main"
 
 # 🎨 输出颜色
 RED='\033[0;31m'
@@ -53,11 +63,13 @@ check_requirements() {
 
 # 📦 下载部署配置
 download_deployment_config() {
-    local repo_url="${1:-https://github.com/your-org/v7.git}"
-    local branch="${2:-main}"
+    local repo_url="${1:-$DEFAULT_REPO_URL}"
+    local branch="${2:-$DEFAULT_BRANCH}"
     local temp_dir="/tmp/v7-deploy-$(date +%s)"
     
     log_info "下载部署配置..."
+    log_info "仓库: $repo_url"
+    log_info "分支: $branch"
     
     # 创建临时目录
     mkdir -p "$temp_dir"
@@ -78,26 +90,43 @@ web/Dockerfile
 WIREGUARD_DEPLOYMENT_GUIDE.md
 EOF
     
-    git pull origin "$branch"
+    # 修复git pull错误处理
+    if ! git pull origin "$branch" 2>/dev/null; then
+        log_error "无法从仓库下载配置文件"
+        log_error "仓库: $repo_url"
+        log_error "分支: $branch"
+        rm -rf "$temp_dir"
+        exit 1
+    fi
     
     # 复制文件到工作目录
     local work_dir="/opt/v7-deploy"
     sudo mkdir -p "$work_dir"
-    sudo cp -r * "$work_dir/"
+    
+    # 检查是否有文件被下载
+    if [[ $(find . -name "podman-compose.yml" | wc -l) -eq 0 ]]; then
+        log_error "未找到podman-compose.yml文件"
+        log_error "请检查仓库结构"
+        rm -rf "$temp_dir"
+        exit 1
+    fi
+    
+    sudo cp -r ./* "$work_dir/" 2>/dev/null || true
     sudo chown -R "$USER:$USER" "$work_dir"
     
     cd "$work_dir"
     rm -rf "$temp_dir"
     
     log_success "部署配置下载完成: $work_dir"
-    echo "$work_dir"
+    # 返回工作目录路径 (通过stdout输出，避免与日志混合)
+    printf "%s" "$work_dir"
 }
 
 # 🔧 配置环境变量
 setup_environment() {
     local work_dir="$1"
-    local backend_image="${2:-ghcr.io/your-org/v7/backend:latest}"
-    local web_image="${3:-ghcr.io/your-org/v7/web:latest}"
+    local backend_image="${2:-ghcr.io/hellocplusplus0/v7/backend:latest}"
+    local web_image="${3:-ghcr.io/hellocplusplus0/v7/web:latest}"
     
     log_info "配置环境变量..."
     
@@ -343,8 +372,8 @@ show_help() {
     
     # 指定镜像版本
     ./remote-deploy.sh \
-        -B ghcr.io/your-org/v7/backend:v1.0.0 \
-        -W ghcr.io/your-org/v7/web:v1.0.0
+        -B ghcr.io/hellocplusplus0/v7/backend:v1.0.0 \
+        -W ghcr.io/hellocplusplus0/v7/web:v1.0.0
     
     # 使用私有注册表
     ./remote-deploy.sh \
@@ -353,7 +382,7 @@ show_help() {
         
     # 指定仓库和分支
     ./remote-deploy.sh \
-        -r https://github.com/your-org/v7.git \
+        -r https://github.com/helloCplusplus0/v7.git \
         -b develop
 
 注意:
@@ -365,10 +394,10 @@ EOF
 
 # 🎯 主函数
 main() {
-    local repo_url="https://github.com/your-org/v7.git"
+    local repo_url="https://github.com/helloCplusplus0/v7.git"
     local branch="main"
-    local backend_image="ghcr.io/your-org/v7/backend:latest"
-    local web_image="ghcr.io/your-org/v7/web:latest"
+    local backend_image="ghcr.io/hellocplusplus0/v7/backend:latest"
+    local web_image="ghcr.io/hellocplusplus0/v7/web:latest"
     local username=""
     local token=""
     local work_dir=""
