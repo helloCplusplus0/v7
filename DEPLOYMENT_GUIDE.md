@@ -93,14 +93,14 @@ sudo ufw allow 8080/tcp  # Web服务
 
 ```bash
 # 方法1：直接下载并执行
-curl -sSL https://raw.githubusercontent.com/YOUR_ORG/v7/main/scripts/remote-deploy.sh | bash -s -- \
+curl -sSL https://raw.githubusercontent.com/YOUR_ORG/v7/main/scripts/quick-deploy.sh  | bash -s -- \
   -B ghcr.io/YOUR_ORG/v7/backend:latest \
   -W ghcr.io/YOUR_ORG/v7/web:latest \
   -u YOUR_GITHUB_USERNAME \
   -t YOUR_GITHUB_TOKEN
 
 # 方法2：下载后配置执行
-wget https://raw.githubusercontent.com/YOUR_ORG/v7/main/scripts/remote-deploy.sh
+wget https://raw.githubusercontent.com/YOUR_ORG/v7/main/scripts/quick-deploy.sh 
 chmod +x remote-deploy.sh
 
 ./remote-deploy.sh \
