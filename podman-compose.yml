@@ -46,14 +46,14 @@ services:
     container_name: v7-backend
     restart: unless-stopped
     
-    # 🔌 端口配置
-    ports:
-      - "${BACKEND_HTTP_PORT:-3000}:${BACKEND_HTTP_PORT:-3000}"   # HTTP API
-      - "${BACKEND_GRPC_PORT:-50053}:${BACKEND_GRPC_PORT:-50053}" # gRPC API
+    # 🌐 网络配置 - WireGuard VPN需要host网络模式
+    # 使用host模式让容器直接访问主机网络栈(包括WireGuard接口)
+    network_mode: host
     
-    # 🌐 网络配置
-    networks:
-      - v7-network
+    # 🔌 端口配置 - host模式下不需要端口映射
+    # ports:
+    #   - "${BACKEND_HTTP_PORT:-3000}:${BACKEND_HTTP_PORT:-3000}"   # HTTP API
+    #   - "${BACKEND_GRPC_PORT:-50053}:${BACKEND_GRPC_PORT:-50053}" # gRPC API
     
     # 🌍 环境变量配置
     environment:
@@ -67,8 +67,10 @@ services:
       - GRPC_PORT=${BACKEND_GRPC_PORT:-50053}
       
       # Analytics Engine连接配置
-      # 🔧 重要：Analytics Engine 运行在宿主机 systemd 服务
-      - ANALYTICS_ENGINE_ADDR=${ANALYTICS_ENGINE_ADDR:-http://host.containers.internal:50051}
+      # 🔧 WireGuard VPN: host网络模式下可直接访问VPN接口
+      # 开发环境: 本地直连
+      # 生产环境: 通过WireGuard VPN (10.0.0.1是analytics-engine的VPN IP)
+      - ANALYTICS_ENGINE_ENDPOINT=${ANALYTICS_ENGINE_ENDPOINT:-http://127.0.0.1:50051}
       
       # 数据库配置
       - DATABASE_URL=sqlite:/app/data/prod.db
@@ -101,13 +103,13 @@ services:
           memory: 256M
           cpus: '0.25'
     
-    # 🏥 健康检查
+    # 🏥 健康检查（适配WireGuard VPN延迟）
     healthcheck:
       test: ["CMD-SHELL", "curl -f http://localhost:${BACKEND_HTTP_PORT:-3000}/health || exit 1"]
       interval: 30s
-      timeout: 10s
-      retries: 3
-      start_period: 30s
+      timeout: 15s    # 增加超时时间：VPN网络可能有额外延迟
+      retries: 5      # 增加重试次数：应对VPN连接不稳定
+      start_period: 45s  # 增加启动时间：等待VPN连接建立
     
     # 📝 日志配置
     logging:
@@ -134,7 +136,7 @@ services:
     ports:
       - "${WEB_PORT:-8080}:${WEB_PORT:-8080}"
     
-    # 🌐 网络配置
+    # 🌐 网络配置 - Web保持bridge模式(不需要VPN访问)
     networks:
       - v7-network
     

@@ -47,7 +47,7 @@ use crate::slices::mvp_stat::{
         ComprehensiveAnalysisRequest, ComprehensiveAnalysisResponse,
     },
 };
-use crate::infra::{di, cache::MemoryCache, db::SqliteDatabase};
+use crate::infra::{di, cache::MemoryCache, db::SqliteDatabase, analytics_client::AnalyticsEngineClient};
 
 #[derive(Clone)]
 pub struct BackendGrpcService {
@@ -291,18 +291,56 @@ impl BackendService for BackendGrpcService {
         request: Request<AnalyticsProxyRequest>,
     ) -> Result<Response<AnalyticsProxyResponse>, Status> {
         let req = request.into_inner();
+        tracing::info!("🧮 Analytics代理请求: algorithm={}, data_points={}", 
+            req.algorithm, req.data.len());
         
-        // 获取统计服务实例并直接调用Analytics Engine
-        let _service = di::inject::<ConcreteStatisticsService>();
+        // 获取Analytics Engine客户端
+        let analytics_client = di::inject::<AnalyticsEngineClient>();
         
-        // 这里可以实现直接的Analytics Engine代理调用
-        // 暂时返回简单响应
+        // 构建analytics-engine请求
+        let analysis_request = crate::analytics::AnalysisRequest {
+            request_id: uuid::Uuid::new_v4().to_string(),
+            algorithm: req.algorithm.clone(),
+            data: req.data.clone(),
+            params: req.parameters.clone(),
+            options: Some(crate::analytics::AnalysisOptions {
+                prefer_rust: true,
+                allow_python: true,
+                timeout_ms: 30000,
+                include_metadata: true,
+            }),
+        };
+        
+        // 调用analytics-engine
+        match analytics_client.analyze(analysis_request).await {
+            Ok(response) => {
+                if response.success {
+                    tracing::info!("✅ Analytics分析成功: {}", response.request_id);
         Ok(Response::new(AnalyticsProxyResponse {
-            result: format!("{{\"algorithm\": \"{}\", \"data_points\": {}}}", req.algorithm, req.data.len()),
+                        result: response.result_json,
             success: true,
             error: String::new(),
-            metrics: std::collections::HashMap::new(),
-        }))
+                        metrics: if let Some(metadata) = response.metadata {
+                            let mut metrics = std::collections::HashMap::new();
+                            metrics.insert("execution_time_ms".to_string(), metadata.execution_time_ms as f64);
+                            metrics.insert("data_size".to_string(), metadata.data_size as f64);
+                            metrics.insert("implementation".to_string(), 
+                                if metadata.implementation == "rust" { 1.0 } else { 0.0 });
+                            metrics
+                        } else {
+                            std::collections::HashMap::new()
+                        },
+                    }))
+                } else {
+                    tracing::warn!("⚠️ Analytics分析失败: {}", response.error_message);
+                    Err(Status::internal(format!("Analytics分析失败: {}", response.error_message)))
+                }
+            }
+            Err(e) => {
+                tracing::error!("❌ Analytics Engine调用失败: {}", e);
+                Err(Status::unavailable(format!("Analytics Engine不可用: {}", e)))
+            }
+        }
     }
 
     async fn statistics(

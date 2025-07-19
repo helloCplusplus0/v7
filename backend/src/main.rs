@@ -240,21 +240,19 @@ async fn setup_services() {
     let cache = MemoryCache::new();
     let crud_service = SqliteCrudService::new(crud_repository, cache);
 
-    // 🔧 Analytics Engine连接配置 - 必须显式配置
-    // 环境变量 ANALYTICS_ENGINE_ADDR 必须设置，支持以下场景：
-    // - 同机部署: http://localhost:50051 或 http://127.0.0.1:50051  
-    // - 容器环境: http://host.containers.internal:50051
-    // - 跨服务器: http://<analytics-server-ip>:50051
-    // - Docker compose: http://analytics-engine:50051
-    let analytics_endpoint = std::env::var("ANALYTICS_ENGINE_ADDR")
+    // 🧮 创建Analytics Engine客户端（用于analytics_proxy代理）
+    let analytics_engine_client = fmod_slice::infra::AnalyticsEngineClientFactory::create_from_config()
+        .expect("Failed to create analytics engine client");
+    
+    // 🔧 Analytics Engine连接配置 - 兼容原有统计服务
+    let analytics_endpoint = std::env::var("ANALYTICS_ENGINE_ENDPOINT")
         .unwrap_or_else(|_| {
-            tracing::warn!("⚠️  ANALYTICS_ENGINE_ADDR not set, using fallback");
-            tracing::warn!("📍 Please deploy Analytics Engine first and set ANALYTICS_ENGINE_ADDR");
-            // 最后的回退地址，但应该避免使用
-            "http://localhost:50051".to_string()
+            tracing::warn!("⚠️  ANALYTICS_ENGINE_ENDPOINT not set, using fallback");
+            tracing::warn!("📍 Please deploy Analytics Engine first and set ANALYTICS_ENGINE_ENDPOINT");
+            "http://127.0.0.1:50051".to_string()
         });
     
-    let analytics_client = fmod_slice::slices::mvp_stat::service::GrpcAnalyticsClient::new(
+    let mvp_analytics_client = fmod_slice::slices::mvp_stat::service::GrpcAnalyticsClient::new(
         analytics_endpoint.clone()
     );
     
@@ -263,11 +261,11 @@ async fn setup_services() {
     // 创建统计分析服务实例
     let random_generator = fmod_slice::slices::mvp_stat::service::DefaultRandomDataGenerator::new();
     let dispatcher = fmod_slice::slices::mvp_stat::service::DefaultIntelligentDispatcher::new(
-        analytics_client.clone()
+        mvp_analytics_client.clone()
     );
     let stat_service = fmod_slice::slices::mvp_stat::service::DefaultStatisticsService::new(
         random_generator,
-        analytics_client,
+        mvp_analytics_client,
         dispatcher
     );
 
@@ -275,6 +273,7 @@ async fn setup_services() {
     di::register(auth_service);
     di::register(crud_service);
     di::register(stat_service);
+    di::register(analytics_engine_client);
 
     tracing::info!("✅ 服务注册完成 - v7静态分发模式");
     tracing::info!("   - 认证服务: JwtAuthService");

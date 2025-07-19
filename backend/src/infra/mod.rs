@@ -7,6 +7,7 @@ pub mod config;
 pub mod db;
 pub mod di;
 pub mod monitoring;
+pub mod analytics_client;
 
 // 重新导出核心基础设施
 pub use cache::*;
@@ -14,3 +15,4 @@ pub use config::*;
 pub use db::*;
 pub use di::*;
 pub use monitoring::*;
+pub use analytics_client::*;
